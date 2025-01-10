@@ -49,7 +49,7 @@ def execute_program(debug, test_prog, option, params):
 
     cmd_list = [
         "cd ../tests/test-progs/hangu-rnic/src && make",
-        "cd ../ && scons build/X86/gem5.opt"
+        "cd ../ && scons build/X86/gem5.opt -j$(nproc)"
     ]
     cmd_list.append(cmd_run_sim(debug, test_prog, option, params))
 

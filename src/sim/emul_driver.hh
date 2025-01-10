@@ -49,6 +49,7 @@ class ThreadContext;
  * Currently only open(), ioctl(), and mmap() calls are supported, but other
  * calls (e.g., read(), write()) could be added as needed.
  */
+//一个SE状态下驱动程序的基类
 class EmulatedDriver : public SimObject
 {
   protected:

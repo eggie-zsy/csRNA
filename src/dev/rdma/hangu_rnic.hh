@@ -46,7 +46,7 @@
 #include "dev/pci/device.hh"
 #include "params/HanGuRnic.hh"
 
-
+//开始于12.27日 12：19
 
 using namespace HanGuRnicDef;
 
@@ -54,6 +54,7 @@ class HanGuRnicInt;
 
 class HanGuRnic : public RdmaNic {
   private:
+    //网口interface
     HanGuRnicInt *etherInt;
 
     // device registers
@@ -62,7 +63,9 @@ class HanGuRnic : public RdmaNic {
     // packet fifos, interact with Ethernet Link
     std::queue<EthPacketPtr> rxFifo;
     std::queue<EthPacketPtr> txFifo;
-
+    
+    //PIO是接受来自CPU命令的地方，CPU---PCIe interface----PIO
+    //CCU应该是Command Control Unit,处理来自PIO的命令
     /* --------------------PIO <-> CCU {begin}-------------------- */
     std::queue<DoorbellPtr> pio2ccuDbFifo;
     /* --------------------PIO <-> CCU {end}-------------------- */
@@ -218,7 +221,7 @@ class HanGuRnic : public RdmaNic {
         /* rpu -> rcvRpu */
         // std::unordered_map<uint32_t, std::pair<uint32_t, QpcResc*> > rcvQpcList; /* <qpn, <cnt, qpc> > */
         std::queue<std::pair<EthPacketPtr, QpcResc*> > rp2rcvRpFifo;
-
+        //可以理解为有序（fifo）字典
 
         // wrRpu owns
         void wrRpuProcessing(EthPacketPtr rxPkt, QpcResc* qpc);
@@ -283,7 +286,6 @@ class HanGuRnic : public RdmaNic {
         void sauProcessing(); // Send Arbiter Unit, directly post data to link layer
         EventFunctionWrapper sauEvent;
 
-        
         // event for rx packet
         void rauProcessing(); // Receive Arbiter Unit
         EventFunctionWrapper rauEvent;
@@ -305,8 +307,9 @@ class HanGuRnic : public RdmaNic {
     RdmaEngine rdmaEngine;
     
     /* -----------------------RDMA Engine Relevant{end}----------------------- */
-
-    /* -----------------------Cache {begin}------------------------ */
+//1.3 15：22 end
+//1.6 14：36 所有函数第二次读完
+    /* -----------------------RescCache {begin}------------------------ */
     template <class T, class S>
     class RescCache {
       private:
@@ -334,7 +337,7 @@ class HanGuRnic : public RdmaNic {
         std::string _name;
 
         /* Cache for resource T */
-        std::unordered_map<uint32_t, T> cache;
+        std::unordered_map<uint32_t, T> cache;//看来是全组相连，一个block为一个资源条目大小
         uint32_t capacity; /* number of cache entries this Resource cache owns */
 
         /* used to process cache read */
@@ -389,6 +392,7 @@ class HanGuRnic : public RdmaNic {
         void icmStore(IcmResc *icmResc, uint32_t chunkNum);
 
         /* Write resource back to Cache */
+        //对外只暴露写入口和读入口，以及icmstore和setbase函数
         void rescWrite(uint32_t rescIdx, T *resc, const std::function<bool(T&, T&)> &rescUpdate=nullptr);
 
         /* Read resource from Cache */
@@ -399,9 +403,9 @@ class HanGuRnic : public RdmaNic {
 
         std::string name() { return _name; }
     };
-    /* -----------------------Cache {end}------------------------ */
+    /* -----------------------RescCache {end}------------------------ */
 
-
+  //1.6 14:35所有函数第二次读完
     /* -----------------------TPT Relevant{begin}----------------------- */
     class MrRescModule {
       protected:
@@ -452,6 +456,7 @@ class HanGuRnic : public RdmaNic {
          * rg&rru(RRU) write data (write req)
          * rpu(RdRPU) read data (read req)
          * rpu(WrRPU, RcvRPU) write data (write req) */
+        //对外只暴露transReqProcessing()函数
         void transReqProcessing();
         EventFunctionWrapper transReqEvent;
 
@@ -464,7 +469,7 @@ class HanGuRnic : public RdmaNic {
 
     MrRescModule mrRescModule;
     /* -----------------------TPT Relevant{end}----------------------- */
-    
+    //1.2 19:59 start ----
     /* -----------------------CQC Management Module {begin}----------------------- */
     class CqcModule {
       protected:
@@ -479,7 +484,7 @@ class HanGuRnic : public RdmaNic {
         uint8_t chnlIdx;
 
         /* txCqcRspFifo; CqcModule -(update rsp)-> scu 
-         * rxCqcRspFifo; CqcModule -(update rsp)-> rcu */
+         * rxCqcRspFifo; CqcModule -(update rsp)-> rcu */ 
         void cqcRspProc();
         EventFunctionWrapper cqcRspProcEvent;
 
@@ -557,6 +562,8 @@ class HanGuRnic : public RdmaNic {
     };
     /* -----------------------ICM Management Module {end}------------------- */
 
+//1.2 16:11 start   ----   1.2 19:15 end
+//此cache访问不视为关键路径，故无事件调度
     /* -----------------------QPC Cache {begin}---------------------- */
     template <class T>
     class Cache {
@@ -567,7 +574,7 @@ class HanGuRnic : public RdmaNic {
         /* Cache for resource T */
         std::unordered_map<uint32_t, std::pair<T*, uint64_t> > cache; /* <entryNum, <entry, lru>> */
         uint32_t capacity; /* number of cache entries this cache owns */
-        uint32_t cacheSz;
+        uint32_t cacheSz;//可能是cache的entrysize
 
         uint64_t seq_end;
 
@@ -578,7 +585,7 @@ class HanGuRnic : public RdmaNic {
             seq_end(0) { cacheSz = sizeof(T); }
 
         /* Cache replace scheme, return key in cache */
-        uint32_t replaceEntry();
+        uint32_t replaceEntry();//返回被踢出的entryNum
 
         /* lookup entry in cache */
         bool lookupHit(uint32_t entryNum); /* return true if really hit */
@@ -588,8 +595,10 @@ class HanGuRnic : public RdmaNic {
         bool readEntry(uint32_t entryNum, T* entry); /* use memcpy to get entry */
 
         bool updateEntry(uint32_t entryNum, const std::function<bool(T&)> &update=nullptr);
+        //传入了一个更新策略，有默认操作，已读懂
 
         /* write entry to cache */
+        //与readEntry对应
         bool writeEntry(uint32_t entryNum, T* entry); /* use memcpy to write entry */
 
         /* delete entry in cache */
@@ -794,6 +803,8 @@ class HanGuRnic : public RdmaNic {
     QpcModule qpcModule;
     /* -----------------------QPC Management Module {end}----------------------- */
 
+//1.6 16:56----1.7 19：46 第一次读完
+//1.7 21.10 第二次细致读完
     /* -----------------------DMA Engine {begin}----------------------- */
     class DmaEngine {
       protected:
@@ -929,7 +940,7 @@ class HanGuRnic : public RdmaNic {
     void drainResume() override;
 
 };
-
+//RNIC的网口类
 class HanGuRnicInt : public EtherInt {
   private:
     HanGuRnic *dev; // device the interface belonged to

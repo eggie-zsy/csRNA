@@ -44,35 +44,36 @@
  * components.  These components are intended to attach to another
  * ethernet interface on one side and whatever device on the other.
  */
+//以太网口，继承自port
 class EtherInt : public Port
 {
   protected:
-    mutable std::string portName;
-    EtherInt *peer;
+    mutable std::string portName;//portname设置为mutable，所以可以在const成员函数中被修改
+    EtherInt *peer;//指向另一个以太网口
 
   public:
-    EtherInt(const std::string &name, int idx=InvalidPortID)
-        : Port(name, idx), portName(name), peer(NULL) {}
+    EtherInt(const std::string &name, int idx=InvalidPortID)//构造函数，传入一个string引用，一个idx默认值为-1（无效）
+        : Port(name, idx), portName(name), peer(NULL) {}//调用父类的构造函数，portname和peer初始化
     virtual ~EtherInt() {}
 
     /** Return port name (for DPRINTF). */
-    const std::string &name() const { return portName; }
+    const std::string &name() const { return portName; }//返回名字的引用，便于直接修改
 
-    void bind(Port &peer) override;
-    void unbind() override;
+    void bind(Port &peer) override;//覆写父类的bind函数
+    void unbind() override;        //覆写父类的unbind函数
 
-    void setPeer(EtherInt *p);
-    EtherInt* getPeer() { return peer; }
+    void setPeer(EtherInt *p);     //设置连接对象
+    EtherInt* getPeer() { return peer; }  //获取对象的指针
 
-    void recvDone() { peer->sendDone(); }
-    virtual void sendDone() = 0;
+    void recvDone() { peer->sendDone(); }  //完成接收
+    virtual void sendDone() = 0;          //纯虚函数，需要被其子类覆写，否则子类无法实例化
 
-    bool sendPacket(EthPacketPtr packet)
-    { return peer ? peer->recvPacket(packet) : true; }
-    virtual bool recvPacket(EthPacketPtr packet) = 0;
+    bool sendPacket(EthPacketPtr packet)     //发送一个以太网包
+    { return peer ? peer->recvPacket(packet) : true; }  //如果peer是null，返回true，否则让peer接受这个数据包
+    virtual bool recvPacket(EthPacketPtr packet) = 0;  //纯虚函数，需要被子类覆写，接受一个数据包
 
-    bool askBusy() {return peer->isBusy(); }
-    virtual bool isBusy() { return false; }
+    bool askBusy() {return peer->isBusy(); }  //询问peer是否忙，返回bool值
+    virtual bool isBusy() { return false; }   //可被覆写，永远告诉对方自己不忙
 };
 
 #endif // __DEV_NET_ETHERINT_HH__

@@ -29,8 +29,8 @@
 #include "sim/stats.hh"
 
 void
-RdmaNic::regStats() {
-    PciDevice::regStats();
+RdmaNic::regStats() {//RDMARIC的regstats函数
+    PciDevice::regStats();    //没找到这个函数
 
     txBytes
         .name(name() + ".txBytes")
@@ -146,3 +146,5 @@ RdmaNic::regStats() {
     rxPacketRate = rxPackets / simSeconds;
     totPacketRate = totPackets / simSeconds;
 }
+//一些数据操作
+//2024.12.17 18：18第一次读完

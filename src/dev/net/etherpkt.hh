@@ -39,7 +39,7 @@
 
 #include "base/types.hh"
 #include "sim/serialize.hh"
-
+//以太网数据包数据
 /*
  * Reference counted class containing ethernet packet data
  */

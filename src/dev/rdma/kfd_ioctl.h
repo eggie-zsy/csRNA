@@ -35,19 +35,19 @@
 #define RESC_LIM_MASK ((1 << RESC_LIM_LOG)-1)
 
 /* Maximum width of the Resource. We supports 16 process in maximum */
-#define RESC_LEN_LOG  (RESC_LIM_LOG + 4)
+#define RESC_LEN_LOG  (RESC_LIM_LOG + 4)    
 
 /* Valid bit in QPN, higher bits are process id */
 #define QPN_MASK  RESC_LIM_MASK
 
 /* min number of resource entries in one page, we use QPC (256 bytes) to make the calculation */
-#define MIN_ENTRY_NUM_LOG 4
+#define MIN_ENTRY_NUM_LOG 4   //一页容纳16个entry，使用QPC为例
 
 /* Maximum ICM Page num */
-#define ICM_MAX_PAGE_NUM ((1 << RESC_LEN_LOG) >> MIN_ENTRY_NUM_LOG)
+#define ICM_MAX_PAGE_NUM ((1 << RESC_LEN_LOG) >> MIN_ENTRY_NUM_LOG)//2^16
 
 /* allocated page num one time */
-#define ICM_ALLOC_PAGE_NUM (MAX_QPC_BATCH >> MIN_ENTRY_NUM_LOG)
+#define ICM_ALLOC_PAGE_NUM (MAX_QPC_BATCH >> MIN_ENTRY_NUM_LOG)//16
 
 /* mailbox page number */
 #define MAILBOX_PAGE_NUM 32
@@ -67,6 +67,7 @@ struct kfd_ioctl_init_mtt_args {
     // Input
     uint32_t batch_size;
     uint8_t* vaddr[MAX_MR_BATCH];
+    //MAX_MR_BATCH=512，最大MR批处理
     
     // Output
     uint32_t mtt_index;
@@ -180,11 +181,12 @@ struct kfd_ioctl_get_time_args {
 
 
 #define HGKFD_IOCTL_BASE 'K'
+//这里的type命名为size是不是才对
 #define HGKFD_IO(nr)			( _IO(HGKFD_IOCTL_BASE, nr)         )
-#define HGKFD_IOR(nr, type)		( _IOR(HGKFD_IOCTL_BASE, nr, type)  )
-#define HGKFD_IOW(nr, type)		( _IOW(HGKFD_IOCTL_BASE, nr, type)  )
-#define HGKFD_IOWR(nr, type)    ( _IOWR(HGKFD_IOCTL_BASE, nr, type) )
-
+#define HGKFD_IOR(nr, size)		( _IOR(HGKFD_IOCTL_BASE, nr, size)  )
+#define HGKFD_IOW(nr, size)		( _IOW(HGKFD_IOCTL_BASE, nr, size)  )
+#define HGKFD_IOWR(nr, size)    ( _IOWR(HGKFD_IOCTL_BASE, nr, size) )
+//构造每个硬件指令的ioctl32位command
 #define HGKFD_IOC_INIT_DEV		\
 		HGKFD_IOW(0x01, struct kfd_ioctl_init_dev_args)
 
@@ -209,6 +211,7 @@ struct kfd_ioctl_get_time_args {
 #define HGKFD_IOC_ALLOC_QP		\
 		HGKFD_IOR(0x08, struct kfd_ioctl_alloc_qp_args)
 
+//write_qpc是用户写往内核
 #define HGKFD_IOC_WRITE_QPC		\
 		HGKFD_IOW(0x09, struct kfd_ioctl_write_qpc_args)
 

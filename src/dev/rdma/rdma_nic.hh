@@ -32,13 +32,13 @@
 #include "params/RdmaNic.hh"
 #include "sim/sim_object.hh"
 
-class EtherInt;
+class EtherInt;//一个以太网口类
 
-class RdmaNic : public PciDevice {
+class RdmaNic : public PciDevice {//继承自PciDevice
   public:
     typedef RdmaNicParams Params;
     RdmaNic(const Params *params)
-        : PciDevice(params)
+        : PciDevice(params) //RDMANIC的构造函数只是让父类PciDevice接受这个参数并初始化
     {}
 
     const Params *
@@ -50,7 +50,7 @@ class RdmaNic : public PciDevice {
     void regStats();
 
   protected:
-    Stats::Scalar txBytes;
+    Stats::Scalar txBytes;//标量
     Stats::Scalar rxBytes;
     Stats::Scalar txPackets;
     Stats::Scalar rxPackets;
@@ -58,7 +58,7 @@ class RdmaNic : public PciDevice {
     Stats::Scalar descDmaWrites;
     Stats::Scalar descDmaRdBytes;
     Stats::Scalar descDmaWrBytes;
-    Stats::Formula totBandwidth;
+    Stats::Formula totBandwidth; //公式
     Stats::Formula totPackets;
     Stats::Formula totBytes;
     Stats::Formula totPacketRate;
@@ -69,4 +69,13 @@ class RdmaNic : public PciDevice {
 };
 
 #endif // __RDMA_RDMANIC_HH__
+// totBandwidth：表示总带宽。
+// totPackets：表示总数据包数。
+// totBytes：表示总字节数。
+// totPacketRate：表示总数据包率。
+// txBandwidth：表示发送带宽。
+// rxBandwidth：表示接收带宽。
+// txPacketRate：表示发送数据包率。
+// rxPacketRate：表示接收数据包率。
 
+//2024.12.17 17:06第一次读完

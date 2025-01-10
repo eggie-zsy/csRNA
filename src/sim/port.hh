@@ -71,7 +71,7 @@ class Port
      * A numeric identifier to distinguish ports in a vector, and set
      * to InvalidPortID in case this port is not part of a vector.
      */
-    const PortID id;
+    const PortID id;//int16
 
     /**
      * A pointer to this port's peer.
@@ -91,6 +91,7 @@ class Port
      * @param _id A port identifier for vector ports
      */
     Port(const std::string& _name, PortID _id);
+    //构造函数在protected域中，基类无法被直接实例化
 
   public:
 
@@ -147,6 +148,7 @@ class Port
     }
 };
 
+//重载<<
 static inline std::ostream &
 operator << (std::ostream &os, const Port &port)
 {
