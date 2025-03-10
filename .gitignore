@@ -31,5 +31,5 @@ m5out
 configs/example/memcheck.cfg
 configs/dram/lowp_sweep.cfg
 .vscode/**
-scripts/res_out/**
+scripts/res_out/*.txt
 tests/test-progs/hangu-rnic/bin/**
