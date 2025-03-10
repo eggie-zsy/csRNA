@@ -16,7 +16,7 @@ int svr_update_qps(struct rdma_resc *resc) {
         qp->snd_psn = 0;
         qp->ack_psn = 0;
         qp->exp_psn = 0;
-        qp->dsubnet.dlid = (i % resc->num_rem) + resc->ctx->lid + 1;
+        qp->dsubnet.dlid = (i % resc->num_rem) + resc->ctx->lid + 1;//client的lid
         RDMA_PRINT(Server, "svr_update_qps: start modify_qp, dlid %d, src_qp 0x%x, dst_qp 0x%x, cqn 0x%x, i %d\n", 
                 qp->dsubnet.dlid, qp->qp_num, qp->dest_qpn, qp->cq->cq_num, i);
         // ibv_modify_qp(resc->ctx, qp);
@@ -35,7 +35,7 @@ int svr_update_info(struct rdma_resc *resc) {
     while (sum < resc->num_rem) {
         cr_info = rdma_listen(resc, &num); /* listen connection request from client (QP0) */
         if (num == 0) { /* no cr_info is acquired */
-            continue;
+            continue;//直接跳到下一次循环
         }
         RDMA_PRINT(Server, "svr_update_info: rdma_listen end, Polled %d CR data\n", num);
         
@@ -58,6 +58,7 @@ int svr_update_info(struct rdma_resc *resc) {
         }
         RDMA_PRINT(Server, "svr_update_info: start rdma_connect, sum %d\n", sum);
         rdma_connect(resc, cr_info, dest_info, num); /* post connection request to client (QP0) */
+        //回应client
         free(cr_info);
     }
     free(dest_info);
@@ -154,11 +155,11 @@ int svr_fill_mr (struct ibv_mr *mr, uint32_t offset) {
     
     return 0;
 }
-
+//服务端发送函数
 int svr_post_send (struct rdma_resc *resc, struct ibv_qp *qp, int wr_num, uint32_t offset, uint8_t op_mode) {
 
     // RDMA_PRINT(Server, "enter svr_post_send %d\n", wr_num);
-    struct ibv_wqe wqe[TEST_WR_NUM];
+    struct ibv_wqe wqe[TEST_WR_NUM];//一共一个
     struct ibv_mr *local_mr = (resc->mr)[0];
 
     // RDMA_PRINT(Server, "wqe addr 0x%lx, local_mr addr 0x%lx\n", (uint64_t)wqe, (uint64_t)local_mr);
@@ -214,7 +215,7 @@ static void usage(const char *argv0) {
     printf("  -c, --cpu-id=<cpu_id>             id of the cpu (default 0)\n");
     printf("  -m, --op-mode=<op_mode>           opcode mode (default 0, which is RDMA Write)\n");
 }
-
+//测试延迟
 double latency_test(struct rdma_resc *resc, int num_qp, uint8_t op_mode) {
     uint64_t start_time, end_time, con_time = 0;
     struct cpl_desc **desc = resc->desc;
@@ -234,19 +235,20 @@ double latency_test(struct rdma_resc *resc, int num_qp, uint8_t op_mode) {
                 for (int j  = 0; j < res; ++j) {
                     if (desc[j]->trans_type == ibv_type[op_mode]) {
                         polling = 0;
-                        end_time = get_time(resc->ctx);
+                        end_time = get_time(resc->ctx);//记录完成任务时的时间
                         break;
                     }
                 }
             }
-            con_time += (end_time - start_time);
+            con_time += (end_time - start_time);//contime单位ps，gem5内tick单位
             RDMA_PRINT(Server, "latency_test consume_time %.2lf ns\n", ((end_time - start_time) / 1000.0));
         }
     }
 
     return ((con_time * 1.0) / (num_qp * num_client * 1000.0));
+    //记录对num_client个客户端各发送num_qp个RDMA请求完成的平均时间
 }
-
+//测量吞吐量
 double throughput_test(struct rdma_resc *resc, uint8_t op_mode, uint32_t offset, uint64_t *start_time, uint64_t *end_time, uint64_t *con_time, uint64_t *snd_cnt) {
     uint8_t ibv_type[] = {IBV_TYPE_RDMA_WRITE, IBV_TYPE_RDMA_READ};
     int num_qp = resc->num_qp;
@@ -267,7 +269,7 @@ double throughput_test(struct rdma_resc *resc, uint8_t op_mode, uint32_t offset,
     do { // snd_cnt < (num_qp * TEST_WR_NUM * num_client)
         for (int i = 0; i < num_cq; ++i) {
         
-            int res = ibv_poll_cpl(resc->cq[i], desc, MAX_CPL_NUM);
+            int res = ibv_poll_cpl(resc->cq[i], desc, MAX_CPL_NUM);//轮询的是所有的cq
             
             // RDMA_PRINT(Server, "cq %d: ibv_poll_cpl Poll RDMA Write finished. polled %d CPLs, cpl_cnt %d, cnt %d\n", 
             //         i, res, resc->cq[i]->cpl_cnt, snd_cnt);
@@ -282,7 +284,7 @@ double throughput_test(struct rdma_resc *resc, uint8_t op_mode, uint32_t offset,
                         *snd_cnt += (desc[j]->qp_num % TEST_WR_NUM) + 1;
                         uint32_t qp_ptr = (desc[j]->qp_num & RESC_LIM_MASK) - 1; /* the mapping relation between qpn and qp array */
                         svr_post_send(resc, resc->qp[qp_ptr], (desc[j]->qp_num % TEST_WR_NUM) + 1, offset, op_mode); // (4096 / num_qp) * (qp_ptr % num_qp)
-
+                        //让此QP再次发送，指导发送40ms，计算吞吐
                         // RDMA_PRINT(Server, "cq %d: ibv_poll_cpl finish! recv %d bytes, client num: %d, qp_ptr %d, qp_num: %d, res_offset: %d\n", 
                         //         i, desc[j]->byte_cnt, (qp_ptr % num_client), qp_ptr, resc->qp[qp_ptr]->qp_num, j); // (4096 / num_qp) * (qp_ptr % num_qp)
                     }
@@ -294,7 +296,7 @@ double throughput_test(struct rdma_resc *resc, uint8_t op_mode, uint32_t offset,
         *con_time = *end_time - *start_time;
     } while ((*con_time < 40UL * MS) || (*start_time == 0));
 
-    return (*snd_cnt * 1000000.0) / *con_time; /* message rate */
+    return (*snd_cnt * 1000000.0) / *con_time; /* message rate *///换算成秒的单位
 }
 
 int main (int argc, char **argv) {
@@ -365,8 +367,8 @@ int main (int argc, char **argv) {
     RDMA_PRINT(Server, "num_client %d\n", num_client);
 
     num_mr = 1;
-    num_cq = TEST_CQ_NUM;
-    num_qp = TEST_QP_NUM;
+    num_cq = TEST_CQ_NUM;//6
+    num_qp = TEST_QP_NUM;//512
     RDMA_PRINT(Server, "num_qp %d num_cq %d\n", num_qp, num_cq);
     struct rdma_resc *resc = rdma_resc_init(num_mr, num_cq, num_qp, svr_lid, num_client);
 

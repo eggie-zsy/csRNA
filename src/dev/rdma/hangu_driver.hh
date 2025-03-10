@@ -46,7 +46,7 @@
 #include "base/types.hh"
 #include "sim/emul_driver.hh"
 
-//这个文件应该是网卡的内核态驱动我猜
+//这个文件应该是网卡的内核态驱动
 
 class RdmaNic;
 class PortProxy;

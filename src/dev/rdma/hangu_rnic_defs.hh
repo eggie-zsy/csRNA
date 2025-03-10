@@ -51,7 +51,7 @@
 
 #endif
 
-#define QPN_NUM   (512 * 3)
+#define QPN_NUM   (1 * 3)
 
 
 #define PAGE_SIZE_LOG 12     //页面大小的对数为12
@@ -120,8 +120,8 @@ typedef std::shared_ptr<DoorbellFifo> DoorbellPtr;//DoorbellPtr智能指针
 
 
 /* Mailbox offset in CEU command */
-// INIT_ICM初始化icm，不知道icm是什么
-struct InitResc {
+// INIT_ICM初始化icm
+struct  InitResc {
     uint8_t qpsNumLog; //qp数量的对数
     uint8_t cqsNumLog; //cq数量的对数
     uint8_t mptNumLog; //mpt数量的对数
@@ -134,7 +134,7 @@ struct InitResc {
 
 // 该结构体用于记录 ICMT（Internal Control Memory Table）中条目的相关信息，包含页面号以及对应的虚拟地址和物理地址。
 struct IcmResc {
-    uint16_t pageNum;
+    uint16_t pageNum;//物理页号
     uint64_t vAddr;
     uint64_t pAddr;
 };
@@ -454,7 +454,7 @@ struct PendingElem {
     }
 
     ~PendingElem() {
-        // HANGU_PRINT(Debug::CxtResc, "[CxtResc] ~PendingElem()\n");
+     //HANGU_PRINT(Debug::CxtResc, "[CxtResc] ~PendingElem()\n");
         // 打印调试信息
     }
 };
@@ -521,7 +521,7 @@ struct RETH {
     uint32_t len;
 };
 const uint8_t PKT_RETH_SZ = 16; // in bytes
-//不知道是什么头部
+//ACK头部
 struct AETH {
     // syndrome :   msn
     // [31:24]    [23:0]

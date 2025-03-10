@@ -14,13 +14,13 @@ int cpu_sync(struct ibv_context *context) {
     struct hghca_context *dvr = context->dvr;
 
     /* post completion to sync reg */
-    dvr->sync[0] = 1;
+    dvr->sync[0] = 1;//像写doorbell一样，写寄存器的syncreg
 
     /* Wait for other CPUs comming */
     do {
         get_time(context);
         // wait(SLEEP_CNT);
-    } while (dvr->sync[0] != 1);
+    } while (dvr->sync[0] != 1);//读取sync读取的是syncSucc
     HGRNIC_PRINT("cpu_sync: wait for other CPUs comming!\n");
 
     /* post exit to sync reg */
@@ -44,6 +44,7 @@ void trans_wait(struct ibv_context *context) {
     ioctl(dvr->fd, HGKFD_IOC_CHECK_GO, NULL);
 }
 
+//向硬件设备写入cmd，用户态驱动
 uint8_t write_cmd(int fd, unsigned long request, void *args) {
     while (ioctl(fd, request, (void *)args)) {
         HGRNIC_PRINT(" %ld ioctl failed try again\n", request);
@@ -56,8 +57,8 @@ uint8_t write_cmd(int fd, unsigned long request, void *args) {
 
     return 0;
 }
-
-
+//用户态驱动
+//打开一个设备，初始化ICM，注册一个基础MR,创建基础QP和CQ，写入它们的基础CQC和QPC至RNIC中
 int ibv_open_device(struct ibv_context *context, uint16_t lid) {
 
     context->lid = lid;
@@ -67,7 +68,7 @@ int ibv_open_device(struct ibv_context *context, uint16_t lid) {
     struct hghca_context *dvr = (struct hghca_context *)context->dvr;
     char file_name[100];
     sprintf(file_name, KERNEL_FILE_NAME "%d", cpu_id);
-    dvr->fd = open(file_name, O_RDWR);
+    dvr->fd = open(file_name, O_RDWR);//以读写模式打开设备
     HGRNIC_PRINT(" open /dev/hangu_rnic success!\n");
 
     /* map doorbell to user space */
@@ -77,20 +78,21 @@ int ibv_open_device(struct ibv_context *context, uint16_t lid) {
     HGRNIC_PRINT(" get dvr->doorbell 0x%lx\n", (uint64_t)dvr->doorbell);
     
     /* Init ICM */
+    //初始化ICM，会更新RNIC中的cache基地址
     struct kfd_ioctl_init_dev_args *args = 
             (struct kfd_ioctl_init_dev_args *)malloc(sizeof(struct kfd_ioctl_init_dev_args));
     args->qpc_num_log = 16; /* useless here */
     args->cqc_num_log = 16; /* useless here */
     args->mpt_num_log = 19; /* useless here */
     args->mtt_num_log = 19; /* useless here */
-    write_cmd(dvr->fd, HGKFD_IOC_INIT_DEV, (void *)args);
+    write_cmd(dvr->fd, HGKFD_IOC_INIT_DEV, (void *)args);//写入初始化指令
     free(args);
     
     /* Init communication management */
     struct ibv_mr_init_attr mr_attr;
-    mr_attr.length = PAGE_SIZE;
+    mr_attr.length = PAGE_SIZE;//4096字节
     mr_attr.flag = MR_FLAG_RD | MR_FLAG_WR | MR_FLAG_LOCAL;
-    context->cm_mr = ibv_reg_mr(context, &mr_attr);
+    context->cm_mr = ibv_reg_mr(context, &mr_attr);   //注册一波MR，返回注册的MR的相关信息
 
     struct ibv_cq_init_attr cq_attr;
     cq_attr.size_log = PAGE_SIZE_LOG;
@@ -104,15 +106,15 @@ int ibv_open_device(struct ibv_context *context, uint16_t lid) {
     context->cm_qp = ibv_create_qp(context, &qp_attr);
 
     context->cm_qp->ctx = context;
-    context->cm_qp->type = QP_TYPE_UD;
-    context->cm_qp->cq = context->cm_cq;
+    context->cm_qp->type = QP_TYPE_UD;//建立连接的QP是UD连接
+    context->cm_qp->cq = context->cm_cq;//好像是一个QP对应一个CQ，可能
     context->cm_qp->snd_wqe_offset = 0;
     context->cm_qp->rcv_wqe_offset = 0;
     context->cm_qp->lsubnet.llid = context->lid;
     context->cm_qp->qkey = QKEY_CM;
     ibv_modify_qp(context, context->cm_qp);
 
-    context->cm_rcv_posted_off = RCV_WR_BASE;
+    context->cm_rcv_posted_off = RCV_WR_BASE;//这三个是什么意思
     context->cm_rcv_acked_off  = RCV_WR_BASE;
     context->cm_snd_off        = SND_WR_BASE;
     context->cm_rcv_num        = 0;
@@ -121,7 +123,10 @@ int ibv_open_device(struct ibv_context *context, uint16_t lid) {
     return 0;
 }
 
-
+//创建完成队列CQ，返回创建的CQ信息，CQ拥有访问MR的密钥lkey
+//创建CQ需要alloc一个CQN,然后在MPT/MTT中注册转译信息，随后写CQC数据至CQCresc
+//CQCresc的idx为cqnum，entry中包含访问MR的MPT密钥lkey
+//ok
 struct ibv_cq * ibv_create_cq(struct ibv_context *context, struct ibv_cq_init_attr *cq_attr) {
 
     HGRNIC_PRINT(" enter ibv_create_cq!\n");
@@ -212,6 +217,8 @@ struct ibv_qp * ibv_create_batch_qp(struct ibv_context *context, struct ibv_qp_c
 /**
  * @note Now, SQ and RQ has their own MR respectively.
  */
+//创建SQ,RQ
+//分配一个QPN,创建CQ和RQ在MR中的转译关系，返回创建的QP的信息
 struct ibv_qp * ibv_create_qp(struct ibv_context *context, struct ibv_qp_create_attr *qp_attr) {
 
     HGRNIC_PRINT(" enter ibv_create_qp!\n");
@@ -295,6 +302,7 @@ int ibv_modify_batch_qp(struct ibv_context *context, struct ibv_qp *qp, uint32_t
     return 0;
 }
 
+//或许是写QPC【初始化并写入】
 int ibv_modify_qp(struct ibv_context *context, struct ibv_qp *qp) {
     HGRNIC_PRINT(" enter ibv_modify_qp!\n");
     struct hghca_context *dvr = (struct hghca_context *)context->dvr;
@@ -314,7 +322,7 @@ int ibv_modify_qp(struct ibv_context *context, struct ibv_qp *qp) {
     qpc_args->ack_psn [0] = qp->ack_psn;
     qpc_args->exp_psn [0] = qp->exp_psn;
     qpc_args->cq_num  [0] = qp->cq->cq_num;
-    qpc_args->snd_wqe_base_lkey[0] = qp->snd_mr->lkey;
+    qpc_args->snd_wqe_base_lkey[0] = qp->snd_mr->lkey;//QP访问发送和接收描述符使用的lkey为SQ/RQ的MR密钥
     qpc_args->rcv_wqe_base_lkey[0] = qp->rcv_mr->lkey;
     qpc_args->snd_wqe_offset   [0] = qp->snd_wqe_offset;
     qpc_args->rcv_wqe_offset   [0] = qp->rcv_wqe_offset;
@@ -325,7 +333,7 @@ int ibv_modify_qp(struct ibv_context *context, struct ibv_qp *qp) {
     free(qpc_args);
     return 0;
 }
-
+//批处理注册MR
 struct ibv_mr * ibv_reg_batch_mr(struct ibv_context *context, struct ibv_mr_init_attr *mr_attr, uint32_t batch_size) {
     HGRNIC_PRINT(" ibv_reg_batch_mr!\n");
     struct hghca_context *dvr = (struct hghca_context *)context->dvr;
@@ -341,13 +349,13 @@ struct ibv_mr * ibv_reg_batch_mr(struct ibv_context *context, struct ibv_mr_init
                 (struct kfd_ioctl_write_mpt_args *)malloc(sizeof(struct kfd_ioctl_write_mpt_args));
     while (batch_left > 0) {
         uint32_t sub_bsz = 0;
-        sub_bsz = (batch_left > MAX_MR_BATCH) ? MAX_MR_BATCH : batch_left;
+        sub_bsz = (batch_left > MAX_MR_BATCH) ? MAX_MR_BATCH : batch_left;//如果大于最大批处理规模，按最大的来
         
         /* Init (Allocate and write) MTT */
         for (uint32_t i = 0; i < sub_bsz; ++i) {
             /* Calc needed number of pages */
             mr[batch_cnt + i].num_mtt = (mr_attr->length >> 12) + (mr_attr->length & 0xFFF) ? 1 : 0;
-            assert(mr[batch_cnt + i].num_mtt == 1);
+            assert(mr[batch_cnt + i].num_mtt == 1);//每块MR占用一页
             
             /* !TODO: Now, we require allocated memory's start 
             * vaddr is at the boundry of one page */ 
@@ -402,19 +410,20 @@ struct ibv_mr * ibv_reg_batch_mr(struct ibv_context *context, struct ibv_mr_init
     HGRNIC_PRINT(" ibv_reg_batch_mr!: out!\n");
     return mr;
 }
-
+//注册MR，ok
 struct ibv_mr * ibv_reg_mr(struct ibv_context *context, struct ibv_mr_init_attr *mr_attr) {
     HGRNIC_PRINT(" ibv_reg_mr!\n");
     struct hghca_context *dvr = (struct hghca_context *)context->dvr;
     struct ibv_mr *mr =  (struct ibv_mr *)malloc(sizeof(struct ibv_mr));
 
     /* Calc needed number of pages */
-    mr->num_mtt = (mr_attr->length >> 12) + (mr_attr->length & 0xFFF) ? 1 : 0;
+    mr->num_mtt = (mr_attr->length >> 12) + (mr_attr->length & 0xFFF) ? 1 : 0;//1
     assert(mr->num_mtt == 1);
     
     /* !TODO: Now, we require allocated memory's start 
      * vaddr is at the boundry of one page */ 
-    mr->addr   = memalign(PAGE_SIZE, mr_attr->length);
+    //MTT记载了MR的地址转译关系，一次性注册一页信息
+    mr->addr   = memalign(PAGE_SIZE, mr_attr->length);//虚拟地址4096对齐的4096字节大小区域
     memset(mr->addr, 0, mr_attr->length);
     mr->ctx = context;
     mr->flag   = mr_attr->flag;
@@ -422,11 +431,10 @@ struct ibv_mr * ibv_reg_mr(struct ibv_context *context, struct ibv_mr_init_attr 
     mr->mtt    = (struct ibv_mtt *)malloc(sizeof(struct ibv_mtt) * mr->num_mtt);
     for (uint64_t i = 0; i < mr->num_mtt; ++i) {
         mr->mtt[i].vaddr = (void *)(mr->addr + (i << PAGE_SIZE_LOG));
-    
         /* Init (Allocate and write) MTT */
         struct kfd_ioctl_init_mtt_args *mtt_args =
                 (struct kfd_ioctl_init_mtt_args *)malloc(sizeof(struct kfd_ioctl_init_mtt_args));
-        mtt_args->batch_size = 1;
+        mtt_args->batch_size = 1;//批处理规模=1
         mtt_args->vaddr[0] = mr->mtt[i].vaddr;
         write_cmd(dvr->fd, HGKFD_IOC_ALLOC_MTT, (void *)mtt_args);
         mr->mtt[i].mtt_index = mtt_args->mtt_index;
@@ -465,18 +473,24 @@ struct ibv_mr * ibv_reg_mr(struct ibv_context *context, struct ibv_mr_init_attr 
  *          Support any number of WQE posted.
  * 
  */
+//各类发送相关的操作的用户态驱动
+//这个是数据相关操作，需要绕开内核的系统调用
+//生成相关的WQE内容和DOORBELL，批处理num个
+//小疑问，有没有把doorbell发送出去
 int ibv_post_send(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_qp *qp, uint8_t num) {
     struct hghca_context *dvr = (struct hghca_context *)context->dvr;
     volatile uint64_t *doorbell = dvr->doorbell;
-
+    //此前在opendevice操作中，doorbell已建立mmap映射，映射的是dvr->fd这个设备
     struct send_desc *tx_desc;
     uint16_t sq_head = qp->snd_wqe_offset;
     uint8_t first_trans_type = wqe[0].trans_type;
     int snd_cnt = 0;
     for (int i = 0; i < num; ++i) {
         /* Get send Queue */
+        //获取发送WQE的方式是从【SQ的起始虚拟地址addr+此QP的snd_wqe_offset】所在的位置获取
+        //先创建一个tx_desc
         tx_desc = (struct send_desc *) (qp->snd_mr->addr + qp->snd_wqe_offset);
-        
+
         /* Add Base unit */
         // tx_desc->opcode = (i == num - 1) ? IBV_TYPE_NULL : wqe[i+1].trans_type;
         tx_desc->flags  = 0;
@@ -486,9 +500,10 @@ int ibv_post_send(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_q
         /* Add data unit */
         tx_desc->len = wqe[i].length;
         tx_desc->lkey = wqe[i].mr->lkey;
-        tx_desc->lVaddr = (uint64_t)wqe[i].mr->addr + wqe[i].offset;
+        tx_desc->lVaddr = (uint64_t)wqe[i].mr->addr + wqe[i].offset;//WQE告诉硬件获取发送数据的地方
 
         /* Add RDMA unit */
+        //如果wqe是RDMA写或者读，此时QP建立的默认是RC
         if (wqe[i].trans_type == IBV_TYPE_RDMA_WRITE || 
             wqe[i].trans_type == IBV_TYPE_RDMA_READ) {
             tx_desc->rdma_type.rkey = wqe[i].rdma.rkey;
@@ -497,6 +512,7 @@ int ibv_post_send(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_q
         }
 
         /* Add UD Send unit */
+        //如果是UD的Send操作，wqe需要注明对方的信息，如果是RC，面向建立这些信息不需要
         if (wqe[i].trans_type == IBV_TYPE_SEND &&
             qp->type == QP_TYPE_UD) {
             tx_desc->send_type.dest_qpn = wqe[i].send.dqpn;
@@ -506,14 +522,22 @@ int ibv_post_send(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_q
     
         /* update send queue */
         ++snd_cnt;
-        qp->snd_wqe_offset += sizeof(struct send_desc);
-        if (qp->snd_wqe_offset + sizeof(struct send_desc) > qp->snd_mr->length) { /* In case the remaining space 
-                                                                                    * is not enough for one descriptor. */
+        qp->snd_wqe_offset += sizeof(struct send_desc);//每加入一个wqe，offset就要更改，指向下一个WQE
+        //如果发现发现加完后，剩下的空间不足以容纳又一个wqe
+        //则先把前面的发走，生成对应的doorbell
+        //此doorbell生成后把sq_head重置回0，first_trans_type重置看情况，如果刚好此次num个批处理装下【下一个就装不下】
+        //则将first_trans_type置为null，如果此次批处理没结束就装不下，则first_trans_type设置为下一个wqe的传输类型
+        //将snd_cnt变0，snd_wqe_offset也置零，预示着重置SQ
+        //
+        if (qp->snd_wqe_offset + sizeof(struct send_desc) > qp->snd_mr->length) { 
+            /* In case the remaining space * is not enough for one descriptor. */
+            //如果指向下一个WQE导致溢出        
             /* Post send doorbell */
             // tx_desc->opcode  = IBV_TYPE_NULL;
             uint32_t db_low  = (sq_head << 4) | first_trans_type;
             uint32_t db_high = (qp->qp_num << 8) | snd_cnt;
             *doorbell = ((uint64_t)db_high << 32) | db_low;
+            //生成DOORBELL，生成doorbell根据此次批处理第一次时的sq_head、first_trans_type和qp_num数据构成
             
             sq_head = 0;
             first_trans_type = (i == num - 1) ? IBV_TYPE_NULL : wqe[i+1].trans_type;
@@ -541,7 +565,7 @@ int ibv_post_send(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_q
 
     return 0;
 }
-
+//用户态驱动，绕开内核
 int ibv_post_recv(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_qp *qp, uint8_t num) {
     struct hghca_context *dvr = (struct hghca_context *)context->dvr;
     // struct Doorbell *boorbell = dvr->doorbell;
@@ -575,6 +599,7 @@ int ibv_post_recv(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_q
  * @note Poll at most 100 cpl one time
  * 
  */
+//轮询一个CQ，如果发现有元素，则将MR里的CQ内容复制到desc地址
 int ibv_poll_cpl(struct ibv_cq *cq, struct cpl_desc **desc, int max_num) {
     int cnt = 0;
 

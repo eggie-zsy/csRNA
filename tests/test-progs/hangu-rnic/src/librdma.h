@@ -5,11 +5,12 @@
 #include <getopt.h>
 #include <pthread.h>
 
-#define TEST_QP_NUM   512
+#define TEST_QP_NUM   1
 #define TEST_CQ_NUM ((TEST_QP_NUM / (300 / num_client) ) + 1)
 #define TEST_WR_NUM 10
 #define LATENCY_WR_NUM 1
 
+//时间单位
 #define S  (1000UL * MS)
 #define MS (1000UL * US)
 #define US (1000UL * NS)
@@ -81,7 +82,7 @@ struct rem_info {
      */
     uint8_t sync_flag;
 };
-
+//进程连接的rdma总资源
 struct rdma_resc {
     struct ibv_context *ctx;
 
@@ -113,6 +114,7 @@ struct rdma_resc {
  * @note This struct is transmitted through QP0.
  *       It is known as Connection Requester.
  */
+
 struct rdma_cr {
 
     enum rdma_cr_type flag;

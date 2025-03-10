@@ -87,7 +87,7 @@ def get_processes(options, system, rdma_driver, idx, node_num=0):
     # print(pargs.split())
 
     process = Process(pid = 100 + idx)
-    process.executable = workloads[0]
+    process.executable = workloads[0] #
     process.cwd = os.getcwd()
     process.cmd = [workloads[0]] + pargs.split() + ['-c', str(idx)]
     process.drivers = [rdma_driver]
@@ -240,6 +240,7 @@ def make_root_system(rnicsys, en_bw):
         self.etherswitch.interface = rnicsys[i].platform.rdma_nic.interface
 
     return self
+
 
 def get_hangu_rnic_options():
     parser = optparse.OptionParser()

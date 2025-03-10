@@ -3,16 +3,17 @@ import time
 import datetime
 
 CLIENT_NUM = 3
-QP_CACHE_CAP = 300
-REORDER_CAP  = 64
-QP_NUM_LIST = [512, 256, 128, 64, 32, 16, 8, 4, 2, 1] # 1, 2, 4, 8, 16, 32, 64, 128, 256, 512
-
+QP_CACHE_CAP = 200
+REORDER_CAP  = 16
+QP_NUM_LIST = [512, 256, 128, 64, 32, 16, 8, 4, 2, 1] 
+#QP_NUM_LIST = [512, 256]
 WR_TYPE = 0 # 0 -  rdma write; 1 - rdma read
 PCIE_TYPE = "X16"
 VERSION = "V1.5-final"
 RECORD_FILENAME = "res_out/record-" + VERSION + "_QP_CACHE_CAP" + str(QP_CACHE_CAP) + "RECAP" + str(REORDER_CAP) + ".txt"
 
 def change_param(qps_per_clt):
+    #写入测试qp数
     file_data = ""
     with open("../tests/test-progs/hangu-rnic/src/librdma.h", "r", encoding="utf-8") as f:
         for line in f:
@@ -22,7 +23,7 @@ def change_param(qps_per_clt):
 
     with open("../tests/test-progs/hangu-rnic/src/librdma.h", "w", encoding="utf-8") as f:
         f.write(file_data)
-    
+    #写入QPN数
     file_data = ""
     with open("../src/dev/rdma/hangu_rnic_defs.hh", "r", encoding="utf-8") as f:
         for line in f:
@@ -33,10 +34,10 @@ def change_param(qps_per_clt):
     with open("../src/dev/rdma/hangu_rnic_defs.hh", "w", encoding="utf-8") as f:
         f.write(file_data)
 
-
+ #借用linux的shell指令python3 run_hangu.py来运行这个程序
 def execute_program(node_num, qpc_cache_cap, reorder_cap):
     return os.system("python3 run_hangu.py " + str(node_num) + " " + str(qpc_cache_cap) + " " + str(reorder_cap) + " " + str(WR_TYPE))
-
+   
 def print_result(file_name, qps_per_clt):
     bandwidth = 0
     msg_rate  = 0
@@ -44,13 +45,13 @@ def print_result(file_name, qps_per_clt):
     cnt = 0
     with open("res_out/rnic_sys_test.txt") as f:
         for line in f.readlines():
-            if "start time" in line:
+            if "start time" in line:#提取数据以便计算
                 bandwidth += float(line.split(',')[2].strip().split(' ')[1]) # .split(' ')[2]
                 msg_rate  += float(line.split(',')[3].strip().split(' ')[1]) # .split(' ')[2]
                 latency   += float(line.split(',')[4].strip().split(' ')[1])
                 cnt += 1
     
-    bandwidth = round(bandwidth, 2)
+    bandwidth = round(bandwidth, 2)#来自所有cpu的总带宽，应该此处一个cpu代表一个进程
     msg_rate  = round(msg_rate , 2)
     latency   = round(latency/(cnt*1000.0), 2)
 
@@ -81,7 +82,7 @@ def main():
 
     for qps_per_clt in QP_NUM_LIST:
         # Change parameter realted to the simulation
-        change_param(qps_per_clt)
+        change_param(qps_per_clt) 
 
         # execute the program
         print("=============================================")

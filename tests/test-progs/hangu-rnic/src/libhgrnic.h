@@ -174,7 +174,7 @@ struct ibv_mr {
     uint32_t         num_mtt; /* Number of MTT struct for this MR */
     struct ibv_mtt  *mtt;
 };
-
+//一个qp的信息，内核中的数据
 struct ibv_qp {
 
     struct ibv_context *ctx; /* not used now */
@@ -361,11 +361,11 @@ int ibv_modify_batch_qp(struct ibv_context *context, struct ibv_qp *qp, uint32_t
 struct ibv_qp * ibv_create_batch_qp(struct ibv_context *context, struct ibv_qp_create_attr *qp_attr, uint32_t batch_size);
 struct ibv_mr * ibv_reg_batch_mr(struct ibv_context *context, struct ibv_mr_init_attr *mr_attr, uint32_t batch_size);
 
-int ibv_open_device(struct ibv_context *context, uint16_t llid);
-struct ibv_cq * ibv_create_cq(struct ibv_context *context, struct ibv_cq_init_attr *cq_attr);
-struct ibv_qp * ibv_create_qp(struct ibv_context *context, struct ibv_qp_create_attr *qp_attr);
-int ibv_modify_qp(struct ibv_context *context, struct ibv_qp *qp);
-struct ibv_mr * ibv_reg_mr(struct ibv_context *context, struct ibv_mr_init_attr *mr_attr);
+int ibv_open_device(struct ibv_context *context, uint16_t llid);//ok
+struct ibv_cq * ibv_create_cq(struct ibv_context *context, struct ibv_cq_init_attr *cq_attr);//ok
+struct ibv_qp * ibv_create_qp(struct ibv_context *context, struct ibv_qp_create_attr *qp_attr);//ok
+int ibv_modify_qp(struct ibv_context *context, struct ibv_qp *qp);//ok
+struct ibv_mr * ibv_reg_mr(struct ibv_context *context, struct ibv_mr_init_attr *mr_attr);//ok
 int ibv_post_send(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_qp *qp, uint8_t num);
 int ibv_post_recv(struct ibv_context *context, struct ibv_wqe *wqe, struct ibv_qp *qp, uint8_t num);
 

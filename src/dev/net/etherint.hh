@@ -70,7 +70,7 @@ class EtherInt : public Port
 
     bool sendPacket(EthPacketPtr packet)     //发送一个以太网包
     { return peer ? peer->recvPacket(packet) : true; }  //如果peer是null，返回true，否则让peer接受这个数据包
-    virtual bool recvPacket(EthPacketPtr packet) = 0;  //纯虚函数，需要被子类覆写，接受一个数据包
+    virtual bool recvPacket(EthPacketPtr packet) = 0;  //纯虚函数，需要被子类覆写，接受一个数据包，被覆写的内容在其子类hangurnicInt内部
 
     bool askBusy() {return peer->isBusy(); }  //询问peer是否忙，返回bool值
     virtual bool isBusy() { return false; }   //可被覆写，永远告诉对方自己不忙

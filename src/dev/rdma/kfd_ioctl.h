@@ -32,7 +32,7 @@
 
 /* Resource LIMIT for one process */
 #define RESC_LIM_LOG  16
-#define RESC_LIM_MASK ((1 << RESC_LIM_LOG)-1)
+#define RESC_LIM_MASK ((1 << RESC_LIM_LOG)-1)//0xFFFF
 
 /* Maximum width of the Resource. We supports 16 process in maximum */
 #define RESC_LEN_LOG  (RESC_LIM_LOG + 4)    

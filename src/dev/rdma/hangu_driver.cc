@@ -23,6 +23,8 @@
 #include "dev/rdma/hangu_driver.hh"
 
 //内核态驱动，用于实现与模拟的gem5硬件对象通信
+//2024.12第一次读完，读懂30%
+//2.26第二次读完，读懂60%
 
 HanGuDriver::HanGuDriver(Params *p)
   : EmulatedDriver(p), device(p->device) {
@@ -32,6 +34,7 @@ HanGuDriver::HanGuDriver(Params *p)
 /**
  * Create an FD entry for the KFD inside of the owning process.
  */
+//这段代码是一个典型的设备驱动程序的 open 函数实现，用于在操作系统中打开一个设备文件并为其分配文件描述符（FD）
 int
 HanGuDriver::open(ThreadContext *tc, int mode, int flags) {
     
@@ -84,7 +87,7 @@ HanGuDriver::mmap(ThreadContext *tc, Addr start, uint64_t length, int prot,
     process->pTable->map(start, baseAddrBar0.start(), 64, false); // Actually, 36 is enough
     HANGU_PRINT(HanGuDriver, " rnic hangu_rnic doorbell mapped to 0x%x\n", start);
     hcrAddr = start;
-    return start + 24;//返回的start应该是用户空间的虚拟地址
+    return start + 24;//返回的start可能是用户空间的虚拟地址，我不知道
 }
 
 
@@ -104,7 +107,7 @@ HanGuDriver::ioctl(ThreadContext *tc, unsigned req, Addr ioc_buf) {
 
         return 0;
     } else if (checkHcr(virt_proxy)) {//后面有定义
-        HANGU_PRINT(HanGuDriver, " `GO` bit is still high! Try again later.\n");
+        HANGU_PRINT(HanGuDriver, " `` bit is still high! Try again later.\n");
         return -1;
     }
     
@@ -131,6 +134,7 @@ HanGuDriver::ioctl(ThreadContext *tc, unsigned req, Addr ioc_buf) {
             // We don't use input parameter here
             //后面有写
             initIcm(virt_proxy, RESC_LEN_LOG, RESC_LEN_LOG, RESC_LEN_LOG, RESC_LEN_LOG);
+            //支持16个进程，每个进程每个资源最多2^16个资源条目
             //RESC_LEN_LOG=20
         }
         break;
@@ -288,7 +292,7 @@ HanGuDriver::checkHcr(PortProxy& portProxy) {
     // HANGU_PRINT(HanGuDriver, " `GO` is cleared.\n");
     return 0;
 }
-//写HCR doorbell
+//写HCR 
 void 
 HanGuDriver::postHcr(PortProxy& portProxy, uint64_t inParam, 
         uint32_t inMod, uint64_t outParam, uint8_t opcode) {
@@ -304,7 +308,6 @@ HanGuDriver::postHcr(PortProxy& portProxy, uint64_t inParam,
 //     uint32_t goOpcode;   //操作码
 //     };
     HANGU_PRINT(HanGuDriver, " Start Write hcr\n");
-
     hcr.inParam_l  = inParam & 0xffffffff;
     hcr.inParam_h  = inParam >> 32;
     hcr.inMod      = inMod;
@@ -325,6 +328,7 @@ HanGuDriver::postHcr(PortProxy& portProxy, uint64_t inParam,
 
 /* -------------------------- ICM {begin} ------------------------ */
 
+//内核态驱动中的InitIcm，发送给硬件后执行InitIcm的操作
 void 
 HanGuDriver::initIcm(PortProxy& portProxy, uint8_t qpcNumLog, uint8_t cqcNumLog, 
         uint8_t mptNumLog, uint8_t mttNumLog) {
@@ -338,11 +342,10 @@ HanGuDriver::initIcm(PortProxy& portProxy, uint8_t qpcNumLog, uint8_t cqcNumLog,
     mttMeta.entryNumLog = mttNumLog;
     mttMeta.entryNumPage= (1 << (mttNumLog-(12-3)));
     //需要几页装下mtt的全部条目
-    mttMeta.bitmap    = new uint8_t[mttMeta.entryNumPage];
-    memset(mttMeta.bitmap, 0, mttMeta.entryNumPage);
+    mttMeta.bitmap    = new uint8_t[mttMeta.entryNumPage]; 
+    memset(mttMeta.bitmap, 0, mttMeta.entryNumPage);//置为0
     startPtr += mttMeta.size;
     HANGU_PRINT(HanGuDriver, " mttMeta.entryNumPage 0x%x\n", mttMeta.entryNumPage);
-
     //MPT的entry是一个32字节结构体
     //     struct MptResc {
     //     uint32_t flag;
@@ -415,7 +418,7 @@ HanGuDriver::initIcm(PortProxy& portProxy, uint8_t qpcNumLog, uint8_t cqcNumLog,
     //把initResc内容写到mailbox虚拟地址对应的地方，或许是已经写入其物理地址了
 
     //mailbox结构体包含一个虚拟地址一个物理地址
-    postHcr(portProxy, (uint64_t)mailbox.paddr, 0, 0, HanGuRnicDef::INIT_ICM);//写doorbell
+    postHcr(portProxy, (uint64_t)mailbox.paddr, 0, 0, HanGuRnicDef::INIT_ICM);//写HCR
     //INIT_ICM宏为0x01,是一个opcode
 }
 
@@ -429,13 +432,14 @@ HanGuDriver::isIcmMapped(RescMeta &rescMeta, Addr index) {
     return (icmAddrmap.find(icmVPage) != icmAddrmap.end());
 }
 
-//分配ICM的资源
+//分配ICM的资源，为某个resc分配，连续分配16页映射关系
 Addr 
 HanGuDriver::allocIcm(Process *process, RescMeta &rescMeta, Addr index) {
     Addr icmVPage = (rescMeta.start + index * rescMeta.entrySize) >> 12;//获得某个资源某个entry的虚拟页号
 
     while (icmAddrmap.find(icmVPage) != icmAddrmap.end()) { /* cause we allocate multiply resources one time, 
                                                              * the resources may be cross-page. */
+        //如果此index所在的虚拟页已经被映射，则找下一个页，指导这一页没有被映射
         ++icmVPage;
     }
     HANGU_PRINT(HanGuDriver, " rescMeta.start: 0x%lx, index 0x%x, entrySize %d icmVPage 0x%lx\n", rescMeta.start, index, rescMeta.entrySize, icmVPage);
@@ -469,7 +473,7 @@ HanGuDriver::writeIcm(PortProxy& portProxy, uint8_t rescType, RescMeta &rescMeta
     portProxy.writeBlob(mailbox.vaddr, &icmResc, sizeof(HanGuRnicDef::InitResc));
     //把icmResc内容写到mailbox虚拟地址对应的地方【却是模拟空间的位置】
     HANGU_PRINT(HanGuDriver, " pageNum %d, vAddr 0x%lx, pAddr 0x%lx\n", icmResc.pageNum, icmResc.vAddr, icmResc.pAddr);
-    //告诉doorbell命令是WRITE_ICM
+    //告诉HCR命令是WRITE_ICM，写的modifier为1，一次性写入16页映射
     postHcr(portProxy, (uint64_t)mailbox.paddr, 1, rescType, HanGuRnicDef::WRITE_ICM);
 }
 
@@ -508,12 +512,13 @@ HanGuDriver::allocMtt(Process *process,
     for (uint32_t i = 0; i < args->batch_size; ++i) {
         args->mtt_index = allocResc(HanGuRnicDef::ICMTYPE_MTT, mttMeta);
         //根据mttmeta中的bitmap信息分配一个资源编号给mtt_index
+
         //args虽指向内核缓存，里面的vaddr却是从用户空间复制过来的，所以可以用用户进程页表翻译
         process->pTable->translate((Addr)args->vaddr[i], (Addr &)args->paddr[i]);
         HANGU_PRINT(HanGuDriver, " HGKFD_IOC_ALLOC_MTT: vaddr: 0x%lx, paddr: 0x%lx mtt_index %d\n", 
                 (uint64_t)args->vaddr[i], (uint64_t)args->paddr[i], args->mtt_index);
     }
-    args->mtt_index -= (args->batch_size - 1);
+    args->mtt_index -= (args->batch_size - 1);//返回批处理第一个mtt_index
 }
 //写入MTT到gem5模拟内存
 //根据args中的paddr，复制到batch_size个mttResc中，并将batch_size个mttResc写出
@@ -673,67 +678,3 @@ HanGuDriverParams::create()
 //2024.12.20 下午16：05第一次读完
 //2024.12.23 下午14：20第三次读完，深入理解
 //2024.12.25 下午12：06第四次读完，深入理解
-
-
-// #include "syscall_emul_buf.hh"
-// #include <iostream>
-
-// // 模拟目标用户程序中传递的地址和数据大小
-// Addr targetAddress = 0x1000;  // 假设用户空间缓冲区起始地址
-
-// struct MyStruct {
-//     int field1;
-//     float field2;
-//     char name[16];
-// };
-
-// // 模拟 PortProxy 类，用于读取/写入用户空间数据
-// class MockPortProxy : public PortProxy {
-// public:
-//     uint8_t memory[0x2000] = {}; // 模拟用户空间的内存
-
-//     void readBlob(Addr addr, void *buf, int size) override {
-//         memcpy(buf, &memory[addr], size);
-//     }
-
-//     void writeBlob(Addr addr, const void *buf, int size) override {
-//         memcpy(&memory[addr], buf, size);
-//     }
-// };
-
-// int main() {
-//     // 1. 创建模拟用户空间内存代理
-//     MockPortProxy memproxy;
-
-//     // 2. 初始化目标用户空间中的数据
-//     MyStruct initialData = {42, 3.14f, "gem5"};
-//     memcpy(&memproxy.memory[targetAddress], &initialData, sizeof(MyStruct));
-
-//     // 3. 使用 TypedBufferArg 创建缓冲区对象
-//     TypedBufferArg<MyStruct> buffer(targetAddress);
-
-//     // 4. 从目标用户空间读取数据
-//     buffer.copyIn(memproxy);
-//     std::cout << "Original Data:\n";
-//     std::cout << "  field1: " << buffer->field1 << "\n";
-//     std::cout << "  field2: " << buffer->field2 << "\n";
-//     std::cout << "  name: " << buffer->name << "\n";
-
-//     // 5. 修改数据
-//     buffer->field1 += 100;       // 增加整数字段
-//     buffer->field2 *= 2.0f;      // 修改浮点字段
-//     strcat(buffer->name, "_mod"); // 添加后缀到字符串字段
-
-//     // 6. 写回修改后的数据到用户空间
-//     buffer.copyOut(memproxy);
-
-//     // 7. 检查用户空间数据是否被正确更新
-//     MyStruct modifiedData;
-//     memcpy(&modifiedData, &memproxy.memory[targetAddress], sizeof(MyStruct));
-//     std::cout << "\nModified Data:\n";
-//     std::cout << "  field1: " << modifiedData.field1 << "\n";
-//     std::cout << "  field2: " << modifiedData.field2 << "\n";
-//     std::cout << "  name: " << modifiedData.name << "\n";
-
-//     return 0;
-// }

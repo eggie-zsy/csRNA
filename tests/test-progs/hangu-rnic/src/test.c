@@ -1,5 +1,5 @@
 #include "test.h"
-
+//好像被废除了，此文件
 struct ibv_wqe *init_rcv_wqe (struct ibv_mr* mr, int num) {
     struct ibv_wqe *wqe = (struct ibv_wqe *)malloc(sizeof(struct ibv_wqe) * num);
 
@@ -155,7 +155,7 @@ void config_ud_qp (struct ibv_qp* qp, struct ibv_cq *cq, struct ibv_context *ctx
 int exchange_rc_info() {
     return 0;
 }
-
+//创建一个基础QPO,创建一个CQ，一个QP1（RQ,SQ）
 struct Resource *resc_init(uint16_t llid, int msg_size, int num_qp, int num_wqe) {
     struct Resource *res = (struct Resource *)malloc(sizeof(struct Resource));
 
@@ -189,7 +189,7 @@ int main (int argc, char **argv) {
     uint16_t llid, dlid;
 
     if (argc == 4)
-        is_server = 1;
+        is_server = 1;//如果参数是4个，则代表是server
 
     if (!sscanf(argv[1], "%hd", &llid)) {
         printf("[test requester] Error in llid parser. Exit.\n");

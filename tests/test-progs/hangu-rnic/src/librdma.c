@@ -9,6 +9,7 @@
  * @return returns actual posted recv wr.
  *         0 for not acquire. -1 for error.
  */
+//连接建立相关
 int cm_post_recv(struct ibv_context *ctx, int wr_num) {
     struct ibv_wqe *recv_wqe = (struct ibv_wqe *)malloc(sizeof(struct ibv_wqe) * wr_num);
     int i;
@@ -40,6 +41,7 @@ int cm_post_recv(struct ibv_context *ctx, int wr_num) {
  * @return Returns actual posted send wr.
  *         0 for not acquire. -1 for error.
  */
+//连接建立相关
 int cm_post_send(struct ibv_context *ctx, struct rdma_cr *cr_info, int wr_num, uint16_t dlid) {
     struct ibv_wqe *send_wqe = (struct ibv_wqe *)malloc(sizeof(struct ibv_wqe) * wr_num);
     struct rdma_cr *cm_mr;
@@ -73,13 +75,15 @@ int cm_post_send(struct ibv_context *ctx, struct rdma_cr *cr_info, int wr_num, u
             ctx->cm_snd_off = SND_WR_BASE;
         }
     }
-    ibv_post_send(ctx, send_wqe, ctx->cm_qp, wr_num);
+    ibv_post_send(ctx, send_wqe, ctx->cm_qp, wr_num);//用qkey
     free(send_wqe);
     // RDMA_PRINT(librdma, "cm_post_send: after free\n");
 
     return wr_num;
 }
 
+//一个入口函数
+//rdma资源初始化
 struct rdma_resc *rdma_resc_init(int num_mr, int num_cq, int num_qp, uint16_t llid, int num_rem) {
     int i = 0;
 
@@ -92,21 +96,24 @@ struct rdma_resc *rdma_resc_init(int num_mr, int num_cq, int num_qp, uint16_t ll
     resc->num_rem = num_rem;
     resc->mr = (struct ibv_mr **)malloc(sizeof(struct ibv_mr*) * num_mr);
     resc->cq = (struct ibv_cq **)malloc(sizeof(struct ibv_cq*) * num_cq);
-    resc->qp = (struct ibv_qp **)malloc(sizeof(struct ibv_qp*) * num_qp * num_rem);
+    resc->qp = (struct ibv_qp **)malloc(sizeof(struct ibv_qp*) * num_qp * num_rem);//连接数*每个连接的QP数
     resc->rinfo = (struct rem_info *)malloc(sizeof(struct rem_info) * num_rem);
 
     /* device initialization */
     struct ibv_context *ctx = (struct ibv_context *)malloc(sizeof(struct ibv_context));
+    //打开设备，建立第一个进程的QP0（连接建立QP），初始化QP0的CQ,SQ,RQ，接收发送的MR
+    //这个ctx应该是初始化内容的元数据
     ibv_open_device(ctx, llid);
     resc->ctx = ctx;
     RDMA_PRINT(librdma, "ibv_open_device : doorbell address 0x%lx\n", (long int)ctx->dvr);
 
     /* Post receive to CM */
+    //为QP0设立接收区并往RQ放入一个receive的WQE
     cm_post_recv(ctx, RCV_WR_MAX);
 
     /* Create MR */
     struct ibv_mr_init_attr mr_attr;
-    mr_attr.length = 1 << 12;
+    mr_attr.length = 1 << 12;//一页
     mr_attr.flag = MR_FLAG_RD | MR_FLAG_WR | MR_FLAG_LOCAL | MR_FLAG_REMOTE;
     for (i = 0; i < num_mr; ++i) {
         resc->mr[i] = ibv_reg_mr(ctx, &mr_attr);
@@ -170,6 +177,7 @@ int rdma_resc_destroy(struct rdma_resc * resc) {
  * @return returns number of requests. 
  *         0 for not acquire. -1 for error.
  */
+//返回听到的来自MR的接受区域的东西，不包括同步信息
 struct rdma_cr *rdma_listen(struct rdma_resc *resc, int *cm_cpl_num) {
     struct ibv_context *ctx = resc->ctx;
     struct rdma_cr *cr_info = NULL;
@@ -178,14 +186,14 @@ struct rdma_cr *rdma_listen(struct rdma_resc *resc, int *cm_cpl_num) {
 
     struct cpl_desc **desc = resc->desc;
     for (int i = 0; i < 10; ++i) {
-        int res = ibv_poll_cpl(ctx->cm_cq, desc, MAX_CPL_NUM);
-        if (res) {
+        int res = ibv_poll_cpl(ctx->cm_cq, desc, MAX_CPL_NUM);//res是得到的读取CQ数目
+        if (res) {//如果轮询成功
             
             RDMA_PRINT(librdma, "rdma_listen: ibv_poll_cpl finish ! return is %d, cpl_cnt %d\n", res, ctx->cm_cq->cpl_cnt);
 
             for (int j  = 0; j < res; ++j) {
                 if (desc[j]->trans_type == IBV_TYPE_RECV) {
-                    ++cnt;
+                    ++cnt;//记录完成的IBV_TYPE_RECV类任务数目
                     RDMA_PRINT(librdma, "rdma_listen: ibv_poll_cpl recv %d bytes CR.\n", desc[j]->byte_cnt);
                 }
             }
@@ -206,28 +214,20 @@ struct rdma_cr *rdma_listen(struct rdma_resc *resc, int *cm_cpl_num) {
             /* find the sync req, and store it */
             for (int j = 0; j < resc->num_rem; ++j) {
                 if (cr_tmp->src_lid == resc->rinfo[j].dlid) {
-                    resc->rinfo[j].sync_flag = 1;
+                    resc->rinfo[j].sync_flag = 1;//同步完成
                     break;
                 }
             }
             RDMA_PRINT(librdma, "rdma_listen: CR_TYPE_SYNC\n");
         } else {
-            memcpy(&(cr_info[req_cnt]), cr_tmp, sizeof(struct rdma_cr));
+            memcpy(&(cr_info[req_cnt]), cr_tmp, sizeof(struct rdma_cr));//存储这个cr_tmp
             ++req_cnt;
         }
-
-        // u8_tmp = (uint8_t *)&(cr_info[i]);
-        // RDMA_PRINT(librdma, "rdma_listen: flag: 0x%x, base_addr 0x%lx, acked_off 0x%lx, src_qpn 0x%x, dst_qpn 0x%x\n", 
-        //         cr_info[i].flag, (uint64_t)ctx->cm_mr->addr, (uint64_t)ctx->cm_rcv_acked_off,  
-        //         cr_info[i].src_qpn, cr_info[i].dst_qpn);
-        // for (int j = 0; j < sizeof(struct rdma_cr); ++j) {
-        //     RDMA_PRINT(librdma, "rdma_listen: data[%d] 0x%x\n", j, u8_tmp[j]);
-        // }
 
         /* Clear cpl data */
         cr_tmp->flag = CR_TYPE_NULL;
         
-        --ctx->cm_rcv_num;
+        --ctx->cm_rcv_num;//完成一个receive任务
         ctx->cm_rcv_acked_off += sizeof(struct rdma_cr);
         if (ctx->cm_rcv_acked_off + sizeof(struct rdma_cr) > RCV_WR_MAX * sizeof(struct rdma_cr)) {
             ctx->cm_rcv_acked_off = 0;
@@ -235,6 +235,7 @@ struct rdma_cr *rdma_listen(struct rdma_resc *resc, int *cm_cpl_num) {
     }
 
     /* Post CM recv to RQ */
+    //如果RQ没满，可再发送一个receive的WQE
     if (ctx->cm_rcv_num < RCV_WR_MAX) {
         int rcv_wqe_num = cm_post_recv(ctx, RCV_WR_MAX);
         RDMA_PRINT(librdma, "rdma_listen: Replenish %d Recv WQEs\n", rcv_wqe_num);
@@ -247,7 +248,7 @@ struct rdma_cr *rdma_listen(struct rdma_resc *resc, int *cm_cpl_num) {
     }
     return cr_info;
 }
-
+//发送一个send
 int rdma_connect(struct rdma_resc *resc, struct rdma_cr *cr_info, uint16_t *dest_info, int cm_req_num) {
     struct ibv_context *ctx = resc->ctx;
 
@@ -307,13 +308,13 @@ struct cpl_desc **rdma_poll_cm_rcv_cpl(struct rdma_resc *resc, int *cnt) {
     return desc;
 }
 
-
+//向每一个建立的连接发送同步需求
 int post_sync(struct rdma_resc *resc) {
     struct rdma_cr *cr_info = (struct rdma_cr *)malloc(sizeof(struct rdma_cr));
     
     memset(cr_info, 0, sizeof(struct rdma_cr));
-    cr_info->flag = CR_TYPE_SYNC;
-    cr_info->src_lid = resc->ctx->lid;
+    cr_info->flag = CR_TYPE_SYNC;//这是同步需求
+    cr_info->src_lid = resc->ctx->lid;//告诉对方本lid
     
     for (int i = 0; i < resc->num_rem; ++i) {
         cm_post_send(resc->ctx, cr_info, 1, resc->rinfo[i].dlid);
@@ -323,7 +324,7 @@ int post_sync(struct rdma_resc *resc) {
     return 0;
 }
 
-
+//轮询同步信息
 int poll_sync(struct rdma_resc *resc) {
     /* Recv Sync CR Data */
     struct ibv_context *ctx = resc->ctx;
@@ -338,14 +339,14 @@ int poll_sync(struct rdma_resc *resc) {
             ++polled_sync_num;
         }
     }
-
+    //全部已同步完成
     if (polled_sync_num == resc->num_rem) {
         return 0;
     }
 
     while (1) {
 
-        /* replenish cm recv wqe */
+        /* replenish cm recv wqe *///补充wqe
         if (ctx->cm_rcv_num < (RCV_WR_MAX / 2)) {
             int rcv_wqe_num = cm_post_recv(ctx, RCV_WR_MAX);
             RDMA_PRINT(librdma, "poll_sync: Replenish %d Recv WQEs\n", rcv_wqe_num);
@@ -413,7 +414,7 @@ int poll_sync(struct rdma_resc *resc) {
             /* Sync polled all, Exit */
             if (polled_sync_num == resc->num_rem) {
                 for (int j = 0; j < resc->num_rem; ++j) {
-                    resc->rinfo[j].sync_flag = 0;
+                    resc->rinfo[j].sync_flag = 0;//为啥是0
                 }
                 return 0;
             }

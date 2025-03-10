@@ -46,7 +46,7 @@ def cmd_run_sim(debug, test_prog, option, params):
     return cmd
 
 def execute_program(debug, test_prog, option, params):
-
+    
     cmd_list = [
         "cd ../tests/test-progs/hangu-rnic/src && make",
         "cd ../ && scons build/X86/gem5.opt -j$(nproc)"
@@ -61,19 +61,24 @@ def execute_program(debug, test_prog, option, params):
         time.sleep(0.1)
 
 def main():
+    #被运行10次
     if len(sys.argv) < 5:
         raise Exception("\033[0;31;40mMissing input parameter. Needs 4. " + cmd + "\033[0m")
     params = Param(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
+    #初始化params这个结构里，使用执行此文件的argv中的四个参数（argv[0]是执行文件的名字）
 
     num_nodes = params.num_nodes
-    svr_lid = SERVER_LID
+    svr_lid = SERVER_LID #svr_lid = 10
 
     debug = ""
     # debug = "PioEngine,CcuEngine,MrResc,HanGuDriver,RescCache,Ethernet,RdmaEngine,"
-    debug +="HanGuRnic,CxtResc,DmaEngine"
-
+    # debug +="HanGuRnic,CxtResc,DmaEngine"
+    debug +="HanGuRnic"
+    #决定server的执行方式
     test_prog = "'tests/test-progs/hangu-rnic/bin/server"
     opt = "'-s " + str(svr_lid) + " -t " + str(num_nodes - 1) + " -m " + str(params.op_mode)
+   
+    #分别运行numnodes-1个client
     for i in range(num_nodes - 1):
         test_prog += ";tests/test-progs/hangu-rnic/bin/client"
         opt += ";-s " + str(svr_lid) + " -l " + str(svr_lid + i + 1) + " -t " + str(num_nodes - 1) + " -m " + str(params.op_mode)

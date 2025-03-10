@@ -1,9 +1,9 @@
 #include "librdma.h"
-
+//客户端的相关函数
 int clt_update_qps(struct rdma_resc *resc, uint16_t svr_lid) {
 
     /* Modify Local QP */
-    uint32_t qpn_bia = (resc->ctx->lid - svr_lid);
+    uint32_t qpn_bia = (resc->ctx->lid - svr_lid);//1
     for (int i = 0; i < resc->num_qp; ++i) {
         // RDMA_PRINT(Client, "clt_update_qps: start modify_qp, sum %d, cq sum %d\n", 
         // i, i % TEST_CQ_NUM);
@@ -28,7 +28,8 @@ int clt_update_qps(struct rdma_resc *resc, uint16_t svr_lid) {
 
     return 0;
 }
-
+//给server发送建立连接的请求，传递自己的lid、MR的lkey和虚拟地址
+//轮询对方发送的回应，获取对方的lid、MR的key和虚拟地址，更新本地的QPC
 int clt_update_info(struct rdma_resc *resc, uint16_t svr_lid) {
     RDMA_PRINT(Client, "start clt_update_info\n");
     int num = 0;
@@ -50,6 +51,7 @@ int clt_update_info(struct rdma_resc *resc, uint16_t svr_lid) {
     while (num == 0) {
         cr_rcv = rdma_listen(resc, &num); /* listen connection request from client (QP0) */
     }
+    //cr_rcv包含着非同步数据包，所以是req数据包
     RDMA_PRINT(Client, "clt_update_info: rdma_listen end, recved %d CR data\n", num);
 
     /* get remote addr information */
@@ -202,7 +204,7 @@ int clt_connect_qps(struct rdma_resc *resc, uint16_t svr_lid) {
     return 0;
 }
 
-static void usage(const char *argv0) {
+static void usage(const char *argv0) {//告诉用户一些提示
     printf("Usage:\n");
     printf("  %s            start a client and build connection\n", argv0);
     printf("  %s <host>     connect to server at <host>\n", argv0);
@@ -300,7 +302,7 @@ int main (int argc, char **argv) {
     
     num_mr = 1;
     num_cq = TEST_CQ_NUM;
-    num_qp = TEST_QP_NUM;
+    num_qp = TEST_QP_NUM;//512
     struct rdma_resc *resc = rdma_resc_init(num_mr, num_cq, num_qp, llid, 1);
 
     /* Connect QPs to server's QP */
