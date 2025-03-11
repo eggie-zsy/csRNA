@@ -51,7 +51,7 @@
 
 #endif
 
-#define QPN_NUM   (1 * 3)
+#define QPN_NUM   (4 * 3)
 
 
 #define PAGE_SIZE_LOG 12     //页面大小的对数为12

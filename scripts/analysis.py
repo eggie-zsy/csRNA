@@ -3,8 +3,8 @@ import time
 import datetime
 
 CLIENT_NUM = 3
-QP_CACHE_CAP = 200
-REORDER_CAP  = 16
+QP_CACHE_CAP = 300
+REORDER_CAP  = 32
 QP_NUM_LIST = [512, 256, 128, 64, 32, 16, 8, 4, 2, 1] 
 #QP_NUM_LIST = [512, 256]
 WR_TYPE = 0 # 0 -  rdma write; 1 - rdma read
