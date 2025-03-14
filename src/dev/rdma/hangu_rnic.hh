@@ -80,9 +80,9 @@ class HanGuRnic : public RdmaNic {
     std::queue<MrReqRspPtr>descReqFifo; // tx(DFU) & rx(RPU) descriptor req post to this fifo.
     std::queue<TxDescPtr> txdescRspFifo; /* Store descriptor, **not list** */
     std::queue<RxDescPtr> rxdescRspFifo;
-
     // CQ write req fifo, SCU and RCU post the request
     std::queue<MrReqRspPtr> cqWreqFifo;
+    
 
     // Data processing fifo
     std::queue<MrReqRspPtr> dataReqFifo;   // DPU, rgrru, rpu -> TPT
@@ -397,7 +397,10 @@ class HanGuRnic : public RdmaNic {
 
         /* Read resource from Cache */
         void rescRead(uint32_t rescIdx, Event *cplEvent, S reqPkt, T *rspResc=nullptr, const std::function<bool(T&)> &rescUpdate=nullptr);
-
+        
+        /*zsy functionally check if cache hit*/
+        uint32_t checkhit(uint32_t rescIdx);
+        
         /* Outer module uses to get cache entry (so don't delete the element) */
         std::queue<std::pair<T *, S> > rrspFifo;
 
@@ -420,6 +423,7 @@ class HanGuRnic : public RdmaNic {
         
         /* Temp store dma read request pkt until read rsp is back */
         std::queue<std::pair<MrReqRspPtr, DmaReqPtr> > dmaReq2RspFifo;
+        std::vector<MrReqRspPtr> reqpriorVector;
         void dmaReqProcess(uint64_t pAddr, MrReqRspPtr tptReq);
         /**
          * tx descriptor (read rsp) -(schedule to)-> rdmaEngine.ddu
@@ -469,6 +473,26 @@ class HanGuRnic : public RdmaNic {
 
     MrRescModule mrRescModule;
     /* -----------------------TPT Relevant{end}----------------------- */
+    //class 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     //1.2 19:59 start ----
     /* -----------------------CQC Management Module {begin}----------------------- */
     class CqcModule {

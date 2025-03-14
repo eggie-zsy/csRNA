@@ -208,7 +208,7 @@ HanGuDriver::ioctl(ThreadContext *tc, unsigned req, Addr ioc_buf) {
 
             TypedBufferArg<kfd_ioctl_alloc_cq_args> args(ioc_buf);
 
-            args.copyIn(virt_proxy);//这句话原代码未加
+            args.copyIn(virt_proxy);//这句话原代码未加，现在看来不需要加
 
             allocCqc(args);
 

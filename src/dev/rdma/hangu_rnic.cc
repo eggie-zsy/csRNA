@@ -407,7 +407,8 @@ HanGuRnic::doorbellProc () {
     pio2ccuDbFifo.pop();
 
     /* Push doorbell to doorbell fifo */
-    uint8_t idx = df2ccuIdxFifo.front();
+    uint8_t idx = df2ccuIdxFifo.front();//使用一个乱序的idx
+
     df2ccuIdxFifo.pop();
     doorbellVector[idx] = dbell;
     /* We don't schedule it here, cause it should be 
@@ -2216,6 +2217,13 @@ HanGuRnic::RescCache<T, S>::readProc() {
     HANGU_PRINT(RescCache, " RescCache.readProc: out! capacity: %d, size: %d\n", capacity, cache.size());
 }
 
+template <class T, class S>
+uint32_t
+HanGuRnic::RescCache<T, S>::checkhit(uint32_t rescIdx){
+    HANGU_PRINT(MrResc, "checkhitornot\n");
+    return(cache.find(rescIdx) != cache.end()) ;
+    
+}
 ///////////////////////////// HanGuRnic::Resource Cache {end}//////////////////////////////
 
 
@@ -2225,6 +2233,7 @@ HanGuRnic::MrRescModule::MrRescModule (HanGuRnic *i, const std::string n,
   : rnic(i),
     _name(n),
     chnlIdx(0),
+    reqpriorVector(6),
     dmaRrspEvent ([this]{ dmaRrspProcessing(); }, n),
     mptRspEvent  ([this]{ mptRspProcessing();  }, n),
     mttRspEvent  ([this]{ mttRspProcessing();  }, n),
@@ -2350,9 +2359,6 @@ HanGuRnic::MrRescModule::dmaRrspProcessing() {
 
     HANGU_PRINT(MrResc, " MrRescModule.dmaRrspProcessing! FIFO size: %d\n", dmaReq2RspFifo.size());
     
-    //dmaReq2RspFifo应该存放了之前待定的dma读请求，同时，首元素要valid
-    //解决了一个问题，如果有一个DMA请求比较慢，之后进入此fifo的DMA请求先得到响应
-    //为防止回应错位，先看首元素，保证其valid，即使比较慢也要等它好才进一步处理。
     if (dmaReq2RspFifo.empty() || 
             0 == dmaReq2RspFifo.front().second->rdVld) {
         return;
@@ -2436,7 +2442,6 @@ void
 HanGuRnic::MrRescModule::mptRspProcessing() {
     HANGU_PRINT(MrResc, " MrRescModule.mptRspProcessing!\n");
 
-    /* Get mpt resource & MR req pkt from mptCache rsp fifo */
     //从mptcache的rrspfifo（访问cache后返回的数据在这个fifo中）中取出一个pair
     MptResc *mptResc   = mptCache.rrspFifo.front().first;
     MrReqRspPtr reqPkt = mptCache.rrspFifo.front().second;
@@ -2476,8 +2481,6 @@ HanGuRnic::MrRescModule::mptRspProcessing() {
 
     HANGU_PRINT(MrResc, " MrRescModule.mptRspProcessing: out!\n");
 }
-
-
 //获得mtt的entry后调度此函数
 void
 HanGuRnic::MrRescModule::mttRspProcessing() {
@@ -2510,15 +2513,18 @@ HanGuRnic::MrRescModule::mttRspProcessing() {
 void
 HanGuRnic::MrRescModule::transReqProcessing() {
 
+   
     HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing!\n");
-
+    for(int i = 0;i<=5;i++){
+        reqpriorVector[i]=NULL;
+        }
     uint8_t CHNL_NUM = 3;
     bool isEmpty[CHNL_NUM];
     //记录来自rdma_engine的三条请求fifo
-    //分别发送、接受描述符读写请求；cq写请求；数据读写请求
+    //分别发送、接受描述符读请求；cq写请求；数据读写请求
     isEmpty[0] = rnic->descReqFifo.empty();
-    isEmpty[1] = rnic->cqWreqFifo.empty() ;
-    isEmpty[2] = rnic->dataReqFifo.empty();
+    isEmpty[1] = rnic->dataReqFifo.empty();
+    isEmpty[2] = rnic->cqWreqFifo.empty() ;
     //打印三天通道的空闲情况
     HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing isEmpty[0] %d, isEmpty[1] %d, isEmpty[2] %d\n", 
             isEmpty[0], isEmpty[1], isEmpty[2]);
@@ -2530,22 +2536,34 @@ HanGuRnic::MrRescModule::transReqProcessing() {
             switch (chnlIdx) {
               case 0://即descReqFifo非空
                 mrReq = rnic->descReqFifo.front();
+
+                if(mptCache.checkhit(mrReq->lkey)){reqpriorVector[0] = mrReq;}
+                else{reqpriorVector[3] = mrReq;}
+
                 rnic->descReqFifo.pop();
                 HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing: Desc read request!\n");
                 break;
-              case 1://即cqWreqFifo非空
+              case 2://即cqWreqFifo非空
                 mrReq = rnic->cqWreqFifo.front();
+
+                if(mptCache.checkhit(mrReq->lkey)){reqpriorVector[2] = mrReq;}
+                else{reqpriorVector[5] = mrReq;}
+
                 rnic->cqWreqFifo.pop();
                 HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing: Completion Queue write request, offset %d\n", mrReq->offset);
                 break;
-              case 2://即dataReqFifo非空
+              case 1://即dataReqFifo非空
                 mrReq = rnic->dataReqFifo.front();
+
+                if(mptCache.checkhit(mrReq->lkey)){reqpriorVector[1] = mrReq;}
+                else{reqpriorVector[4] = mrReq;}
+
                 rnic->dataReqFifo.pop();
                 HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing: Data read/Write request! data addr 0x%lx\n", (uintptr_t)(mrReq->data));
                 
                 break;
             }
-
+            
             HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing: lkey 0x%x, offset 0x%x, length %d\n", 
                         mrReq->lkey, mrReq->offset, mrReq->length);
 
@@ -2563,19 +2581,23 @@ HanGuRnic::MrRescModule::transReqProcessing() {
                     rnic->schedule(transReqEvent, curTick() + rnic->clockPeriod());
                 }
             }
-
-            /* Read MPT entry */
-            mptReqProcess(mrReq);
-
             HANGU_PRINT(MrResc, " MrRescModule.transReqProcessing: out!\n");
             
-            return;
         } else {
             /* Point to next chnl */
             ++chnlIdx;
             chnlIdx = chnlIdx % CHNL_NUM;
         }
     }
+  /* Read MPT entry */
+  for(int i = 0;i<=5;i++){
+    HANGU_PRINT(MrResc, " MrRescModule.MptReqProcessgo!\n");
+  if (reqpriorVector[i]!=NULL)
+  {
+     mptReqProcess(reqpriorVector[i]);
+  }
+  }
+  return;
 }
 ///////////////////////////// HanGuRnic::Translation & Protection Table {end}//////////////////////////////
 

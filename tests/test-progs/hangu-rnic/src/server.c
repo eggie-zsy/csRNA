@@ -284,7 +284,7 @@ double throughput_test(struct rdma_resc *resc, uint8_t op_mode, uint32_t offset,
                         *snd_cnt += (desc[j]->qp_num % TEST_WR_NUM) + 1;
                         uint32_t qp_ptr = (desc[j]->qp_num & RESC_LIM_MASK) - 1; /* the mapping relation between qpn and qp array */
                         svr_post_send(resc, resc->qp[qp_ptr], (desc[j]->qp_num % TEST_WR_NUM) + 1, offset, op_mode); // (4096 / num_qp) * (qp_ptr % num_qp)
-                        //让此QP再次发送，指导发送40ms，计算吞吐
+                        //让此QP再次发送，直到发送40ms，计算吞吐
                         // RDMA_PRINT(Server, "cq %d: ibv_poll_cpl finish! recv %d bytes, client num: %d, qp_ptr %d, qp_num: %d, res_offset: %d\n", 
                         //         i, desc[j]->byte_cnt, (qp_ptr % num_client), qp_ptr, resc->qp[qp_ptr]->qp_num, j); // (4096 / num_qp) * (qp_ptr % num_qp)
                     }

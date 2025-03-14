@@ -51,7 +51,7 @@ def extract_rdma_data(file_path):
             qp_numbers_read, msg_rates_read, latencies_read)
 
 # 文件路径
-file_path = "record-V1.5-final_QP_CACHE_CAP300RECAP32.txt"
+file_path = "record-V1.5-final_QP_CACHE_CAP300RECAP64.txt"
 
 # 提取数据
 (qp_numbers_write, msg_rates_write, latencies_write,
@@ -106,7 +106,7 @@ ax2.plot(qp_numbers_read, latencies_read, color=color, marker='D', label='READ L
 ax1.set_xscale('linear')
 
 # 添加图例，调整位置到右下角
-fig.legend(loc='lower right', bbox_to_anchor=(0.95, 0.1), fontsize=14)
+fig.legend(loc='lower right', bbox_to_anchor=(0.9, 0.1), fontsize=14)
 
 # 显示图形
 plt.title('Message Rate and Latency vs QP Number (RDMA WRITE & READ)', fontsize=18)
