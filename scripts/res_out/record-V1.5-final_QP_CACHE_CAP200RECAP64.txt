@@ -1,0 +1,84 @@
+==========================================
+128 QPs * 3 clients * 10 CPU_NUM = 3840
+RDMA WRITE
+QPS_PER_CLT 128
+CPU_NUM     10
+bandwidth   2606.32 MB/s
+msg_rate    40.72 Mops/s
+latency     4.5 us
+==========================================
+
+==========================================
+64 QPs * 3 clients * 10 CPU_NUM = 1920
+RDMA WRITE
+QPS_PER_CLT 64
+CPU_NUM     10
+bandwidth   2594.89 MB/s
+msg_rate    40.54 Mops/s
+latency     4.49 us
+==========================================
+
+==========================================
+32 QPs * 3 clients * 10 CPU_NUM = 960
+RDMA WRITE
+QPS_PER_CLT 32
+CPU_NUM     10
+bandwidth   2604.4 MB/s
+msg_rate    40.69 Mops/s
+latency     4.34 us
+==========================================
+
+==========================================
+16 QPs * 3 clients * 10 CPU_NUM = 480
+RDMA WRITE
+QPS_PER_CLT 16
+CPU_NUM     10
+bandwidth   2817.57 MB/s
+msg_rate    44.04 Mops/s
+latency     3.96 us
+==========================================
+
+==========================================
+8 QPs * 3 clients * 10 CPU_NUM = 240
+RDMA WRITE
+QPS_PER_CLT 8
+CPU_NUM     10
+bandwidth   2810.64 MB/s
+msg_rate    43.9 Mops/s
+latency     3.65 us
+==========================================
+
+==========================================
+4 QPs * 3 clients * 10 CPU_NUM = 120
+RDMA WRITE
+QPS_PER_CLT 4
+CPU_NUM     10
+bandwidth   2795.12 MB/s
+msg_rate    43.68 Mops/s
+latency     3.48 us
+==========================================
+
+==========================================
+2 QPs * 3 clients * 10 CPU_NUM = 60
+RDMA WRITE
+QPS_PER_CLT 2
+CPU_NUM     10
+bandwidth   2729.19 MB/s
+msg_rate    42.64 Mops/s
+latency     3.48 us
+==========================================
+
+==========================================
+1 QPs * 3 clients * 10 CPU_NUM = 30
+RDMA WRITE
+QPS_PER_CLT 1
+CPU_NUM     10
+bandwidth   2138.0 MB/s
+msg_rate    33.4 Mops/s
+latency     3.47 us
+==========================================
+
+128 64 32 16 8 4 2 1
+2606.32 2594.89 2604.4 2817.57 2810.64 2795.12 2729.19 2138.0
+40.72 40.54 40.69 44.04 43.9 43.68 42.64 33.4
+4.5 4.49 4.34 3.96 3.65 3.48 3.48 3.47

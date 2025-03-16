@@ -1,0 +1,20 @@
+==========================================
+512 QPs * 3 clients * 10 CPU_NUM = 15360
+RDMA WRITE
+QPS_PER_CLT 512
+CPU_NUM     10
+bandwidth   701.95 MB/s
+msg_rate    11.0 Mops/s
+latency     4.55 us
+==========================================
+
+==========================================
+256 QPs * 3 clients * 10 CPU_NUM = 7680
+RDMA WRITE
+QPS_PER_CLT 256
+CPU_NUM     10
+bandwidth   686.65 MB/s
+msg_rate    10.7 Mops/s
+latency     4.51 us
+==========================================
+
