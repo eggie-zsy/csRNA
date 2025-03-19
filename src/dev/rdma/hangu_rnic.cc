@@ -68,7 +68,8 @@ HanGuRnic::HanGuRnic(const Params *p)
     pciBandwidth(p->pci_speed),
     etherBandwidth(p->ether_speed),
     LinkDelay     (p->link_delay),
-    ethRxPktProcEvent([this]{ ethRxPktProc(); }, name()) {
+    ethRxPktProcEvent([this]{ ethRxPktProc(); }, name())
+    {
 
     HANGU_PRINT(HanGuRnic, " qpc_cache_cap %d  reorder_cap %d cpuNum 0x%x\n", p->qpc_cache_cap, p->reorder_cap, p->cpu_num);
 
@@ -1766,6 +1767,21 @@ HanGuRnic::RescCache<T, S>::replaceScheme() {
 
     return rescNum;
 }
+template <class T, class S>
+uint32_t
+HanGuRnic::RescCache<T, S>::L2replaceScheme() {
+    
+    uint32_t cnt = random_mt.random(0, (int)sacrificecache.size() - 1);//生成0到(int)cache.size() - 1的随机数
+    
+    uint32_t rescNum = sacrificecache.begin()->first;
+    for (auto iter = sacrificecache.begin(); iter != sacrificecache.end(); ++iter, --cnt) {
+        // HANGU_PRINT(RescCache, " RescCache.replaceScheme: num %d, cnt %d\n", iter->first, cnt);
+        if (cnt == 0) {
+            rescNum = iter->first;
+        }
+    }
+    return rescNum;
+}
 // Write evited elem back to memory
 // 参数addr好像是物理地址PCIe地址，被PCIe的RC转化为DMA物理地址
 //ok
@@ -1802,8 +1818,7 @@ HanGuRnic::RescCache<T, S>::fetchReq(uint64_t addr, Event *cplEvent,
         uint32_t rescIdx, S reqPkt, T *rspResc, const std::function<bool(T&)> &rescUpdate) {
     
     HANGU_PRINT(RescCache, "fetchReq enter\n");
-    
-    //临时地址用来存放DMA返回的数据
+
     T *rescDma = new T; /* This is the origin of resc pointer in cache */
     
     /* Post dma read request to DmaEngine.dmaReadProcessing */
@@ -1864,42 +1879,19 @@ HanGuRnic::RescCache<T, S>::fetchRsp() {
         }
     
     } else { /* rsp Resc is not in cache */
-        //如果dma获取的数据目前还不在cache中
-        //则将获取的数据写入cache中
+        //如果dma获取的数据目前还不在L1cache中
+        //则将获取的数据写入L1cache中
+        //这是大部分可能的情况
         if (cache.size() < capacity) {
             cache.emplace(rrsp.rescIdx, *(rrsp.rescDma));
             HANGU_PRINT(RescCache, " RescCache.fetchRsp: capacity %d size %d\n", capacity, cache.size());
-        } else { /* Cache is full */
-
+        } else { /* L1Cache is full */
             HANGU_PRINT(RescCache, " RescCache.fetchRsp: Cache is full!\n");
-            
-            uint32_t wbRescNum = replaceScheme();//随机选择一个资源号踢出
-            uint64_t pAddr = rescNum2phyAddr(wbRescNum);//通过ICM将这个资源号转化为PCIE物理地址
-            T *wbReq = new T;
-            memcpy(wbReq, &(cache[wbRescNum]), sizeof(T));
-            storeReq(pAddr, wbReq);//将被踢出的条目写回内存中
-
-            // Output printing
-            if (sizeof(T) == sizeof(struct QpcResc)) {
-                struct QpcResc *val = (struct QpcResc *)(rrsp.rescDma);
-                struct QpcResc *rep = (struct QpcResc *)(wbReq);
-                HANGU_PRINT(RescCache, " RescCache.fetchRsp: qpn 0x%x, sndlkey 0x%x \n\n", 
-                        val->srcQpn, val->sndWqeBaseLkey);
-                HANGU_PRINT(RescCache, " RescCache.fetchRsp: replaced qpn 0x%x, sndlkey 0x%x \n\n", 
-                        rep->srcQpn, rep->sndWqeBaseLkey);
-            }
-            // T *cptr = rrsp.rescDma;
-            // for (int i = 0; i < sizeof(T); ++i) {
-            //     HANGU_PRINT(RescCache, " RescCache.fetchRsp: data[%d] 0x%x\n", i, ((uint8_t *)cptr)[i]);
-            // }
-
+            uint32_t wbRescNum = replaceScheme();//随机选择一个L1的资源号踢出
+            storetosacrifice(wbRescNum, &cache[wbRescNum]);//存入L2cache中
             cache.erase(wbRescNum);
             cache.emplace(rrsp.rescIdx, *(rrsp.rescDma));
-            HANGU_PRINT(RescCache, " RescCache.fetchRsp: capacity %d size %d, replaced idx %d pAddr 0x%lx\n", 
-                    capacity, cache.size(), wbRescNum, pAddr);
         }
-    
-        /* Push fetched resource to FIFO */ 
         //如果rrsp是个读请求，则将数据给请求方
         if (rrsp.rspResc) {
             memcpy(rrsp.rspResc, rrsp.rescDma, sizeof(T));
@@ -1909,13 +1901,11 @@ HanGuRnic::RescCache<T, S>::fetchRsp() {
     //仅限于read会触发的event
     if (rrsp.cplEvent == nullptr) { // this is a write request
         HANGU_PRINT(RescCache, " RescCache.fetchRsp: this is a write request!\n");
-        //一般来说，这里不可能有写请求
     } else { // this is a read request
     //需要调度rrsp规定的结束事件cplEvent
         if (!rrsp.cplEvent->scheduled()) {
             rnic->schedule(rrsp.cplEvent, curTick() + rnic->clockPeriod());
         }
-        //专用于读返回的fifo，将获取的数据和相关信息推入fifo中
         rrspFifo.emplace(rrsp.rescDma, rrsp.reqPkt);
     }
     HANGU_PRINT(RescCache, " RescCache.fetchRsp: Push fetched resource to FIFO!\n");
@@ -1926,25 +1916,21 @@ HanGuRnic::RescCache<T, S>::fetchRsp() {
     if (rrsp.rescUpdate == nullptr) {
         HANGU_PRINT(RescCache, " RescCache.fetchRsp: rescUpdate is null!\n");
     } else {
-        //根据请求者rrsp中的rescUpdate策略再次更新cache
+        //根据请求者rrsp中的rescUpdate策略再次更新L1cache
         HANGU_PRINT(RescCache, " RescCache.fetchRsp: rescUpdate is not null\n");
         rrsp.rescUpdate(cache[rrsp.rescIdx]);
     }
 
-    /* Schdeule myself if we have valid elem */
-    //如果rreq2rrspFifo中仍有元素，则调度自己继续处理来自DMA返回的数据
-    //感觉不会成立，因为只有fetchreq往这个fifo中添加，fetchreq在readproc中执行，而readproc执行的条件是rreq2rreq2rrspFifo空
     if (rreq2rrspFifo.size()) {
         CacheRdPkt rrsp = rreq2rrspFifo.front();
         if (rrsp.dmaReq->rdVld) {
-            //如果dma请求已被处理
             if (!fetchCplEvent.scheduled()) {
                 rnic->schedule(fetchCplEvent, curTick() + rnic->clockPeriod());
             }
         }
-    } else { /* schedule readProc if it do not has pending read req **/
-    //如果没有因DMA而待处理的请求了，则可以调度readProc，获取下一个cache请求
+    } else if(!L1toL2fifo.size()){ /* schedule readProc if it do not has pending read req **/
         if (!readProcEvent.scheduled()) {
+            cachelock = 0;
             rnic->schedule(readProcEvent, curTick() + rnic->clockPeriod());
         }
     }
@@ -2016,35 +2002,22 @@ HanGuRnic::RescCache<T, S>::rescWrite(uint32_t rescIdx, T *resc, const std::func
 
     HANGU_PRINT(RescCache, " RescCache.rescWrite! capacity: %d, size: %d rescSz %d, rescIndex %d\n", 
             capacity, cache.size(), sizeof(T), rescIdx);
-    // if (sizeof(T) == sizeof(struct QpcResc)) {
-    //     for (auto &item : cache) {
-    //         uint32_t key = item.first;
-    //         struct QpcResc *val = (struct QpcResc *)&(item.second);
-    //         HANGU_PRINT(RescCache, " RescCache.rescWrite: cache elem is key 0x%x qpn 0x%x, sndlkey 0x%x \n\n", 
-    //                 key, val->srcQpn, val->sndWqeBaseLkey);
-    //     }
-    // }
     //如果要写的索引在cache中
     if (cache.find(rescIdx) != cache.end()) { /* Cache hit */
 
-        HANGU_PRINT(RescCache, " RescCache.rescWrite: Cache hit\n");
+        HANGU_PRINT(RescCache, " RescCache.rescWrite: L1 Cache hit\n");
         
         /* If there's specified update function */
         if (rescUpdate == nullptr) {//如果没有指定的写操作，默认操作是替换改索引的数据（使用resc指向的数据)
             T tmp = cache[rescIdx];
             cache.erase(rescIdx);
             delete &tmp;
-            cache.emplace(rescIdx, *resc);//擦除是保证能写入新的数据
+            cache.emplace(rescIdx, *resc);//擦除是保证能写入新的数据，解引用
             HANGU_PRINT(RescCache, " RescCache.rescWrite: Resc is written\n");
         } else {
             rescUpdate(cache[rescIdx], *resc);
             HANGU_PRINT(RescCache, " RescCache.rescWrite: Desc updated\n");
         }
-
-        // T *cptr = &(cache[rescIdx]);
-        // for (int i = 0; i < sizeof(T); ++i) {
-        //     HANGU_PRINT(RescCache, " RescCache.rescWrite: data[%d] 0x%x resc 0x%x\n", i, ((uint8_t *)cptr)[i], ((uint8_t *)resc)[i]);
-        // }
 
         HANGU_PRINT(RescCache, " RescCache: capacity %d size %d\n", capacity, cache.size());
     } else if (cache.size() < capacity) { /* Cache miss & insert elem directly */
@@ -2055,34 +2028,52 @@ HanGuRnic::RescCache<T, S>::rescWrite(uint32_t rescIdx, T *resc, const std::func
         
         HANGU_PRINT(RescCache, " RescCache: capacity %d size %d\n", capacity, cache.size());
     } else if (cache.size() == capacity) { /* Cache miss & replace */
-    //如果cachemiss且cache满了，则选择一个踢走，这是一个写穿的cache，写调用了storeReq函数，storeReq函数再调度dma事件
+
         HANGU_PRINT(RescCache, " RescCache.rescWrite: Cache miss & replace\n");
 
         /* Select one elem in cache to evict */
-        uint32_t wbRescNum = replaceScheme();//选择一个索引号
-        uint64_t pAddr = rescNum2phyAddr(wbRescNum);//转化为PCIe物理地址
-        T *writeReq = new T;
-        memcpy(writeReq, &(cache[wbRescNum]), sizeof(T));
-        storeReq(pAddr, writeReq);
+        uint32_t wbRescNum = replaceScheme();//选择一个索引号提出cache，放入sacrificecache中
+        storetosacrifice(wbRescNum, &cache[wbRescNum]);
+
         //writeReq指向的数据不能是栈上，因为要传递给其他函数
-
-        // T *cptr = &(cache[wbRescNum]);
-        // HANGU_PRINT(RescCache, " RescCache.rescWrite: cptr 0x%lx\n", (uint64_t)cptr);
-        // for (int i = 0; i < sizeof(T); ++i) {
-        //     HANGU_PRINT(RescCache, " RescCache.rescWrite: data[%d] 0x%x resc 0x%x\n", i, ((uint8_t *)cptr)[i], ((uint8_t *)resc)[i]);
-        // }
-
-        // delete &(cache[wbRescNum]); /* It has been written to host memory */
         cache.erase(wbRescNum);
         cache.emplace(rescIdx, *resc);
-        HANGU_PRINT(RescCache, " RescCache.rescWrite: wbRescNum %d, ICM_paddr_base 0x%x, new_index %d\n", wbRescNum, pAddr, rescIdx);
-        HANGU_PRINT(RescCache, " RescCache: capacity %d size %d\n", capacity, cache.size());
+
     } else {
         panic(" RescCache.rescWrite: mismatch! capacity %d size %d\n", capacity, cache.size());
     }
 }
 
-
+template <class T, class S>
+void 
+HanGuRnic::RescCache<T, S>::storetosacrifice(uint32_t rescIdx,T * resc)
+{
+    T* rescinL2 = new T;//rescinL2需要存储数据副本，故堆上指针
+    memcpy(rescinL2, resc, sizeof(T));
+    if (sacrificecache.find(rescIdx) != sacrificecache.end()) { /* L2Cache hit */
+        T tmp = sacrificecache[rescIdx];
+        sacrificecache.erase(rescIdx);
+        delete &tmp;
+        sacrificecache.emplace(rescIdx, *rescinL2);//解引用，写入数据
+        HANGU_PRINT(RescCache, "L2 write hit \n");
+    }
+    else if (sacrificecache.size() < sacricapacity) { /* Cache miss & insert elem directly */
+        sacrificecache.emplace(rescIdx, *rescinL2);
+        HANGU_PRINT(RescCache, "L2 write miss but not full");
+    }
+    else if (sacrificecache.size() == sacricapacity) { 
+        uint32_t wbRescNum = L2replaceScheme();//选择一个索引号提出cache，放入sacrificecache中
+        uint64_t pAddr = rescNum2phyAddr(wbRescNum);//转化为PCIe物理地址
+        T *writeReq = new T;
+        memcpy(writeReq, &(sacrificecache[wbRescNum]), sizeof(T));
+        storeReq(pAddr, writeReq);
+        sacrificecache.erase(wbRescNum);
+        sacrificecache.emplace(rescIdx, *resc);
+        HANGU_PRINT(RescCache, "L2 write miss and write back to memory");
+    } else {
+        panic(" L2 error");
+    }
+}
 /**
  * @note This Func get resource and put it back to rrspFifo.
  *      Note that this function returns resc in two data struct:
@@ -2107,7 +2098,7 @@ HanGuRnic::RescCache<T, S>::rescRead(uint32_t rescIdx, Event *cplEvent, S reqPkt
 
     /* push event to fetchRsp */
     //将请求放入reqFifo中，读请求的cplEvent不应该为空，默认rescDMA和dmaReq都为空指针
-    //这个reqPkt还不是太理解
+
     reqFifo.emplace(cplEvent, rescIdx, nullptr, reqPkt, nullptr, rspResc, rescUpdate);
    
    //如果目前没有读处理，则让cache处理读请求、
@@ -2130,44 +2121,23 @@ HanGuRnic::RescCache<T, S>::rescRead(uint32_t rescIdx, Event *cplEvent, S reqPkt
 template <class T, class S>
 void 
 HanGuRnic::RescCache<T, S>::readProc() {
-
-    /* If there's pending read req or there's no req in reqFifo, 
-     * do not process next rquest */
-    //处理是有条件的，要求无缓存请求，且reqFifo不能为空
-    //rreq2rrspFifo存放因cache miss而去主存获取数据的cache读请求
-    if (rreq2rrspFifo.size() || reqFifo.empty()) {
+    //必须一次性只处理一个数据
+    if (rreq2rrspFifo.size() || reqFifo.empty()|| L1toL2fifo.size()||cachelock == 1) {
         return;
     }
-
     /* Get cache rd req pkt from reqFifo */
     CacheRdPkt rreq = reqFifo.front();
     uint32_t rescIdx = rreq.rescIdx;
     reqFifo.pop();
-   
     //打印出这个cache请求的信息
     HANGU_PRINT(RescCache, " RescCache.readProc! capacity: %d, rescIdx %d, is_write %d, rescSz: %d, size: %d\n", 
             capacity, rescIdx, (rreq.cplEvent == nullptr), sizeof(T), cache.size());
-    // if (sizeof(T) == sizeof(struct QpcResc)) {
-    //     for (auto &item : cache) {
-    //         uint32_t key = item.first;
-    //         struct QpcResc *val = (struct QpcResc *)&(item.second);
-    //         HANGU_PRINT(RescCache, " RescCache.readProc0: cache elem is key 0x%x qpn 0x%x, sndlPsn %d \n\n", 
-    //                 key, val->srcQpn, val->sndPsn);
-    //     }
-    // }
     //如果cache命中
     if (cache.find(rescIdx) != cache.end()) { /* Cache hit */
-        HANGU_PRINT(RescCache, " RescCache.readProc: Cache hit\n");
-        
-        /** 
-         * If rspResc is not nullptr, which means 
-         * it need to put resc to rspResc, copy 
-         * data in cache entry.
-         */
+        HANGU_PRINT(RescCache, " RescCache.readProc: L1 Cache hit\n");    
         if (rreq.rspResc) {
             memcpy(rreq.rspResc, &cache[rescIdx], sizeof(T));
         }
-
         if (rreq.cplEvent == nullptr) { // This is write request
             HANGU_PRINT(RescCache, " RescCache.readProc: This is write request\n");
             //理论上不可能是写请求，因为只有读请求会被放入reqfifo中
@@ -2192,29 +2162,76 @@ HanGuRnic::RescCache<T, S>::readProc() {
             rreq.rescUpdate(cache[rescIdx]);
         }
 
-        //缓存命中，于是一个时钟周期后从reqFifo中取出并处理下一个cache请求
-        //缓存命中访问需2个时钟周期
+        //L1缓存命中，于是一个时钟周期后从reqFifo中取出并处理下一个cache请求
+        //L1缓存命中访问需2个时钟周期
         if (reqFifo.size()) {
             if (!readProcEvent.scheduled()) {
                 rnic->schedule(readProcEvent, curTick() + rnic->clockPeriod());
             }
         }
 
-    } else if (cache.size() <= capacity) { //如果缓存丢失，则需要dma获取内存数据
-        HANGU_PRINT(RescCache, " RescCache.readProc: Cache miss & read elem!\n");
-        
-        /* Fetch required data */
-        //通过dma获取数据
-        uint64_t pAddr = rescNum2phyAddr(rescIdx);//由ICM计算由索引到实际的PCIe物理地址
-        fetchReq(pAddr, rreq.cplEvent, rescIdx, rreq.reqPkt, rreq.rspResc, rreq.rescUpdate);
-
-        HANGU_PRINT(RescCache, " RescCache.readProc: resc_index %d, ICM paddr 0x%lx\n", rescIdx, pAddr);
-
+    } else if (cache.size() <= capacity) { //如果缓存丢失，则访问L2cache
+        HANGU_PRINT(RescCache, " RescCache.readProc: L1 Cache miss launch request to L2\n");
+        L1toL2fifo.push(rreq);
+        if (!L2readProcEvent.scheduled()) {
+                cachelock = 1;//上锁,就算有人调用readProc也没用
+                rnic->schedule(L2readProcEvent, curTick() + 10*rnic->clockPeriod());
+        }
     } else {
         panic(" RescCache.readProc: mismatch! capacity %d size %d\n", capacity, cache.size());
     }
 
     HANGU_PRINT(RescCache, " RescCache.readProc: out! capacity: %d, size: %d\n", capacity, cache.size());
+}
+
+template <class T, class S>
+void 
+HanGuRnic::RescCache<T, S>::L2readProc(){
+
+    assert(L1toL2fifo.size());
+    CacheRdPkt rreq = L1toL2fifo.front();
+    uint32_t rescIdx = rreq.rescIdx;
+    L1toL2fifo.pop();
+   
+    if (sacrificecache.find(rescIdx) != sacrificecache.end()) { //L2 命中
+        HANGU_PRINT(RescCache, " L2 read hit");
+        if (rreq.rspResc) {
+            memcpy(rreq.rspResc, &sacrificecache[rescIdx], sizeof(T));
+        }
+        if (rreq.cplEvent == nullptr) {;} 
+        else { // This is read request
+            T *rescBack = new T;
+             memcpy(rescBack, &sacrificecache[rescIdx], sizeof(T));
+            /* Schedule read response event */
+            if (!rreq.cplEvent->scheduled()) {
+                rnic->schedule(*(rreq.cplEvent), curTick() + rnic->clockPeriod());
+            }
+            rrspFifo.emplace(rescBack, rreq.reqPkt);//将cache中取出的数据放入回应请求的fifo中
+                 //L2缓存命中，将数据更新至L1缓存
+            rescWrite(rescIdx, rescBack , NULL);
+            if (rreq.rescUpdate) {
+            rreq.rescUpdate(cache[rescIdx]);
+            }
+        }
+
+        cachelock = 0;
+        if (reqFifo.size()) {
+            if (!readProcEvent.scheduled()) {
+                rnic->schedule(readProcEvent, curTick() + rnic->clockPeriod());
+            }
+        }
+
+    } else if (sacrificecache.size() <= sacricapacity) { //如果L2缓存丢失，则需要dma获取内存数据
+        // /* Fetch required data */
+        uint64_t pAddr = rescNum2phyAddr(rescIdx);//由ICM计算由索引到实际的PCIe物理地
+        fetchReq(pAddr, rreq.cplEvent, rescIdx, rreq.reqPkt, rreq.rspResc, rreq.rescUpdate);
+
+        HANGU_PRINT(RescCache, "L2 miss,need DMA");
+
+    } else {
+        panic("L2 READ error ");
+    }
+
 }
 
 template <class T, class S>
@@ -2257,6 +2274,7 @@ HanGuRnic::MrRescModule::mptReqProcess (MrReqRspPtr mrReq) {
     HANGU_PRINT(MrResc, " mptReqProcess enter\n");
 
     /* Read MPT entry */
+  
     mptCache.rescRead(mrReq->lkey, &mptRspEvent, mrReq);//读取mptcache中的数据，结束后调度mptRspEvent事件
 }
 //后处理MTT
@@ -2264,8 +2282,21 @@ void
 HanGuRnic::MrRescModule::mttReqProcess (uint64_t mttIdx, MrReqRspPtr mrReq) {
 
     HANGU_PRINT(MrResc, " mttReqProcess enter\n");
-    
     /* Read MTT entry */
+    if(mptCache.checkhit(mrReq->lkey)&&mttCache.checkhit(mttIdx)){
+        HANGU_PRINT(MrResc, " mpt_hit with mtt_hit \n");
+    }
+    else if((!mptCache.checkhit(mrReq->lkey))&&(!mttCache.checkhit(mttIdx))){
+        HANGU_PRINT(MrResc, " mpt_miss with mtt_miss \n");
+    }
+    else if ((mptCache.checkhit(mrReq->lkey))&&(!mttCache.checkhit(mttIdx)))
+    {
+        HANGU_PRINT(MrResc, " mpt_hit with mtt_miss \n");
+    }
+    else if ((!mptCache.checkhit(mrReq->lkey))&&(mttCache.checkhit(mttIdx)))
+    {
+        HANGU_PRINT(MrResc, " mpt_miss with mtt_hit \n");
+    }
     mttCache.rescRead(mttIdx, &mttRspEvent, mrReq);
 }
 //根据获得的物理地址，通过dma获取数据

@@ -338,11 +338,16 @@ class HanGuRnic : public RdmaNic {
 
         /* Cache for resource T */
         std::unordered_map<uint32_t, T> cache;//看来是全组相连，一个block为一个资源条目大小
+        std::unordered_map<uint32_t, T> sacrificecache;
+
         uint32_t capacity; /* number of cache entries this Resource cache owns */
+        uint32_t sacricapacity;
 
         /* used to process cache read */
         void readProc();
         EventFunctionWrapper readProcEvent;
+        void L2readProc();
+        EventFunctionWrapper L2readProcEvent;
       
         /* Request FIFO, Only used in Cache Read.
          * Used to temp store request pkt in order */
@@ -361,9 +366,11 @@ class HanGuRnic : public RdmaNic {
 
         /* Cache replace scheme, return key in cache */
         uint32_t replaceScheme();
-
+        uint32_t L2replaceScheme();
         // Write evited elem back to memory
         void storeReq(uint64_t addr, T *resc);
+
+        void storetosacrifice(uint32_t rescIdx,T * resc);
 
         // Read wanted elem from memory
         void fetchReq(uint64_t addr, Event *cplEvent, uint32_t rescNum, S reqPkt, T *resc, const std::function<bool(T&)> &rescUpdate=nullptr);
@@ -375,6 +382,7 @@ class HanGuRnic : public RdmaNic {
         /* read req -> read rsp Fifo
          * Used only in Read Cache miss. */
         std::queue<CacheRdPkt> rreq2rrspFifo;
+        std::queue<CacheRdPkt> L1toL2fifo;
 
       public:
 
@@ -382,9 +390,13 @@ class HanGuRnic : public RdmaNic {
           : rnic(i),
             _name(n),
             capacity(cacheSize),
+            sacricapacity(2*cacheSize),
             readProcEvent([this]{ readProc(); }, n),
-            fetchCplEvent([this]{ fetchRsp(); }, n) { icmPage = new uint64_t [ICM_MAX_PAGE_NUM]; rescSz = sizeof(T); }
-
+            fetchCplEvent([this]{ fetchRsp(); }, n),
+            L2readProcEvent([this]{ L2readProc(); }, n) ,
+            cachelock(0)
+            { icmPage = new uint64_t [ICM_MAX_PAGE_NUM]; rescSz = sizeof(T); }
+            
         /* Set base address of ICM space */
         void setBase(uint64_t base);
 
@@ -400,6 +412,7 @@ class HanGuRnic : public RdmaNic {
         
         /*zsy functionally check if cache hit*/
         uint32_t checkhit(uint32_t rescIdx);
+        uint8_t cachelock;
         
         /* Outer module uses to get cache entry (so don't delete the element) */
         std::queue<std::pair<T *, S> > rrspFifo;
@@ -962,6 +975,7 @@ class HanGuRnic : public RdmaNic {
 
     DrainState drain() override;
     void drainResume() override;
+
 
 };
 //RNIC的网口类
