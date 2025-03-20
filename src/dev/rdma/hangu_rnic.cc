@@ -1886,7 +1886,7 @@ HanGuRnic::RescCache<T, S>::fetchRsp() {
             cache.emplace(rrsp.rescIdx, *(rrsp.rescDma));
             HANGU_PRINT(RescCache, " RescCache.fetchRsp: capacity %d size %d\n", capacity, cache.size());
         } else { /* L1Cache is full */
-            HANGU_PRINT(RescCache, " RescCache.fetchRsp: Cache is full!\n");
+            HANGU_PRINT(RescCache, " RescCache.fetchRsp: L1 Cache is full!\n");
             uint32_t wbRescNum = replaceScheme();//随机选择一个L1的资源号踢出
             storetosacrifice(wbRescNum, &cache[wbRescNum]);//存入L2cache中
             cache.erase(wbRescNum);
@@ -1928,9 +1928,11 @@ HanGuRnic::RescCache<T, S>::fetchRsp() {
                 rnic->schedule(fetchCplEvent, curTick() + rnic->clockPeriod());
             }
         }
-    } else if(!L1toL2fifo.size()){ /* schedule readProc if it do not has pending read req **/
+    } else if(reqFifo.size()){ /* schedule readProc if it do not has pending read req **/
+        cachelock = 0;//解锁
+        HANGU_PRINT(RescCache, " readproc available again\n");
         if (!readProcEvent.scheduled()) {
-            cachelock = 0;
+            
             rnic->schedule(readProcEvent, curTick() + rnic->clockPeriod());
         }
     }
@@ -2006,38 +2008,33 @@ HanGuRnic::RescCache<T, S>::rescWrite(uint32_t rescIdx, T *resc, const std::func
     if (cache.find(rescIdx) != cache.end()) { /* Cache hit */
 
         HANGU_PRINT(RescCache, " RescCache.rescWrite: L1 Cache hit\n");
-        
         /* If there's specified update function */
         if (rescUpdate == nullptr) {//如果没有指定的写操作，默认操作是替换改索引的数据（使用resc指向的数据)
-            T tmp = cache[rescIdx];
             cache.erase(rescIdx);
-            delete &tmp;
             cache.emplace(rescIdx, *resc);//擦除是保证能写入新的数据，解引用
-            HANGU_PRINT(RescCache, " RescCache.rescWrite: Resc is written\n");
         } else {
             rescUpdate(cache[rescIdx], *resc);
-            HANGU_PRINT(RescCache, " RescCache.rescWrite: Desc updated\n");
         }
 
         HANGU_PRINT(RescCache, " RescCache: capacity %d size %d\n", capacity, cache.size());
     } else if (cache.size() < capacity) { /* Cache miss & insert elem directly */
-    //cachemiss了，创造一个新的entry写入数据
-        HANGU_PRINT(RescCache, " RescCache.rescWrite: Cache miss\n");
+
+        HANGU_PRINT(RescCache, " RescCache.rescWrite:L1 Cache miss but not full\n");
 
         cache.emplace(rescIdx, *resc);
         
         HANGU_PRINT(RescCache, " RescCache: capacity %d size %d\n", capacity, cache.size());
     } else if (cache.size() == capacity) { /* Cache miss & replace */
 
-        HANGU_PRINT(RescCache, " RescCache.rescWrite: Cache miss & replace\n");
-
+        HANGU_PRINT(RescCache, " RescCache.rescWrite:L1 Cache miss and visit L2 Cache\n");
         /* Select one elem in cache to evict */
         uint32_t wbRescNum = replaceScheme();//选择一个索引号提出cache，放入sacrificecache中
         storetosacrifice(wbRescNum, &cache[wbRescNum]);
-
         //writeReq指向的数据不能是栈上，因为要传递给其他函数
         cache.erase(wbRescNum);
         cache.emplace(rescIdx, *resc);
+        HANGU_PRINT(RescCache, " RescCache.rescWrite:L2 cap %d size %d\n",sacricapacity,sacrificecache.size());
+
 
     } else {
         panic(" RescCache.rescWrite: mismatch! capacity %d size %d\n", capacity, cache.size());
@@ -2051,17 +2048,17 @@ HanGuRnic::RescCache<T, S>::storetosacrifice(uint32_t rescIdx,T * resc)
     T* rescinL2 = new T;//rescinL2需要存储数据副本，故堆上指针
     memcpy(rescinL2, resc, sizeof(T));
     if (sacrificecache.find(rescIdx) != sacrificecache.end()) { /* L2Cache hit */
-        T tmp = sacrificecache[rescIdx];
-        sacrificecache.erase(rescIdx);
-        delete &tmp;
-        sacrificecache.emplace(rescIdx, *rescinL2);//解引用，写入数据
         HANGU_PRINT(RescCache, "L2 write hit \n");
+        sacrificecache.erase(rescIdx);
+        sacrificecache.emplace(rescIdx, *rescinL2);//解引用，写入数据
     }
     else if (sacrificecache.size() < sacricapacity) { /* Cache miss & insert elem directly */
+        HANGU_PRINT(RescCache, "L2 write miss but not full\n");
         sacrificecache.emplace(rescIdx, *rescinL2);
-        HANGU_PRINT(RescCache, "L2 write miss but not full");
+        
     }
     else if (sacrificecache.size() == sacricapacity) { 
+        HANGU_PRINT(RescCache, "L2 write miss and write back to memory");
         uint32_t wbRescNum = L2replaceScheme();//选择一个索引号提出cache，放入sacrificecache中
         uint64_t pAddr = rescNum2phyAddr(wbRescNum);//转化为PCIe物理地址
         T *writeReq = new T;
@@ -2069,7 +2066,7 @@ HanGuRnic::RescCache<T, S>::storetosacrifice(uint32_t rescIdx,T * resc)
         storeReq(pAddr, writeReq);
         sacrificecache.erase(wbRescNum);
         sacrificecache.emplace(rescIdx, *resc);
-        HANGU_PRINT(RescCache, "L2 write miss and write back to memory");
+        
     } else {
         panic(" L2 error");
     }

@@ -51,9 +51,9 @@ class HanGuRnic(RdmaNic):
     
     interface = EtherInt("Ethernet Interface")
     
-    mpt_cache_num = Param.Int(40000,
+    mpt_cache_num = Param.Int(400,
         "Number of mpt cache enteries")
-    mtt_cache_num = Param.Int(50000,
+    mtt_cache_num = Param.Int(500,
         "Number of mtt cache enteries")
     qpc_cache_cap = Param.Int(100,
         "Number of qpc cache enteries")

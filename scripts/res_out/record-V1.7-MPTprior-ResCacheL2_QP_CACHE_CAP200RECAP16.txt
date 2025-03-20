@@ -1,0 +1,14 @@
+==========================================
+16 QPs * 3 clients * 10 CPU_NUM = 480
+RDMA WRITE
+QPS_PER_CLT 16
+CPU_NUM     10
+bandwidth   2817.57 MB/s
+msg_rate    44.04 Mops/s
+latency     4.04 us
+==========================================
+
+16
+2817.57
+44.04
+4.04
