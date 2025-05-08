@@ -147,8 +147,8 @@ int svr_connect_qps(struct rdma_resc *resc) {
 
 int svr_fill_mr (struct ibv_mr *mr, uint32_t offset) {
 
-#define TRANS_WRDMA_DATA "Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!"
-#define TRANS_RRDMA_DATA "Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !"
+#define TRANS_WRDMA_DATA "Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!Hello World!  Hello RDMA Write! Hello World!  Hello RDMA Write!    "
+#define TRANS_RRDMA_DATA "Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !  Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !Hello World!  Hello RDMA Read ! Hello World!  Hello RDMA Read !   "
     
     char *string = (char *)(mr->addr + offset);
     memcpy(string, TRANS_WRDMA_DATA, sizeof(TRANS_WRDMA_DATA));

@@ -6,13 +6,14 @@ import threading
 write_lock = threading.Lock()
 
 CLIENT_NUM = 3
-QP_CACHE_CAP = 200
-REORDER_CAP = 16
-QP_NUM_LIST = [1,2,4,8,16,32,64,128,256,512]
+QP_CACHE_CAP = 300
+REORDER_CAP = 32
+QP_NUM_LIST = [1,2,4,8,16,24,32,48,64,96,128,192,256,512]
+#QP_NUM_LIST = [24,48,96,192]
 WR_TYPE = 0  # 0 - rdma write; 1 - rdma read
 PCIE_TYPE = "X16"
 VERSION = "V1.5-final"
-RECORD_FILENAME = "res_out/record-" + VERSION + "_QP_CACHE_CAP" + str(QP_CACHE_CAP) + "RECAP" + str(REORDER_CAP) + ".txt"
+RECORD_FILENAME = "res_out/record-" + VERSION + "_QP_CACHE_CAP" + str(QP_CACHE_CAP) + "RECAP" + str(REORDER_CAP) +"longlong"+ ".txt"
 TEST_OUTPUT_DIR = "res_out/test"
 
 
@@ -78,13 +79,13 @@ def change_param(qps_per_clt, thread_id):
     modify_include_statement(client_copy, librdma_copy_name)
     modify_include_statement(librdma_c_copy, librdma_copy_name)
 
-    makefile_copy = create_file_copy("../tests/test-progs/hangu-rnic/src/Makefile", thread_id)
-    return librdma_copy, server_copy, client_copy, librdma_c_copy, makefile_copy
+    #makefile_copy = create_file_copy("../tests/test-progs/hangu-rnic/src/Makefile", thread_id)
+    #return librdma_copy, server_copy, client_copy, librdma_c_copy, makefile_copy
+    return librdma_copy, server_copy, client_copy, librdma_c_copy
 
-
-def execute_program(node_num, qpc_cache_cap, reorder_cap, output_file, librdma_copy, server_copy, client_copy, librdma_c_copy, makefile_copy,thread_id):
+def execute_program(node_num, qpc_cache_cap, reorder_cap, output_file, librdma_copy, server_copy, client_copy, librdma_c_copy,thread_id):
     # os.system(f"cd ../tests/test-progs/hangu-rnic/src && make -f {os.path.basename(makefile_copy)}")
-    cmd = f"python3 run_hangu_co.py {node_num} {qpc_cache_cap} {reorder_cap} {WR_TYPE} {output_file} {os.path.basename(server_copy)} {os.path.basename(client_copy)} {os.path.basename(makefile_copy)} {thread_id}"
+    cmd = f"python3 run_hangu_co.py {node_num} {qpc_cache_cap} {reorder_cap} {WR_TYPE} {output_file} {os.path.basename(server_copy)} {os.path.basename(client_copy)} {thread_id}"
     print(cmd)
     rtn = os.system(cmd)
     if rtn != 0:
@@ -131,13 +132,14 @@ def print_result(file_name, qps_per_clt):
     return bandwidth, msg_rate, latency
 
 def run_test(qps_per_clt, thread_id):
-    librdma_copy, server_copy, client_copy, librdma_c_copy, makefile_copy = change_param(qps_per_clt, thread_id)
+   # librdma_copy, server_copy, client_copy, librdma_c_copy, makefile_copy = change_param(qps_per_clt, thread_id)
+    librdma_copy, server_copy, client_copy, librdma_c_copy = change_param(qps_per_clt, thread_id)
     output_file = os.path.join(TEST_OUTPUT_DIR, f"rnic_sys_test_{qps_per_clt}.txt")
     print("=============================================")
     print("qps_per_clt is : %d" % (qps_per_clt))
     print("=============================================\n\n\n\n")
     try:
-        execute_program(CLIENT_NUM + 1, QP_CACHE_CAP, REORDER_CAP, output_file, librdma_copy, server_copy, client_copy, librdma_c_copy, makefile_copy,thread_id)
+        execute_program(CLIENT_NUM + 1, QP_CACHE_CAP, REORDER_CAP, output_file, librdma_copy, server_copy, client_copy, librdma_c_copy,thread_id)
     except Exception as e:
         print(f"Program execution error! {qps_per_clt}: {e}")
         return qps_per_clt, None, None, None

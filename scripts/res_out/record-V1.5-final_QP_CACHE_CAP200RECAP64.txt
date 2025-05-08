@@ -1,3 +1,25 @@
+
+==========================================
+512 QPs * 3 clients * 10 CPU_NUM = 15360
+RDMA WRITE
+QPS_PER_CLT 512
+CPU_NUM     10
+bandwidth   2702.08 MB/s
+msg_rate    42.22 Mops/s
+latency     4.5 us
+==========================================
+
+
+==========================================
+256 QPs * 3 clients * 10 CPU_NUM = 7680
+RDMA WRITE
+QPS_PER_CLT 256
+CPU_NUM     10
+bandwidth   2638.08 MB/s
+msg_rate    41.22 Mops/s
+latency     4.5 us
+==========================================
+
 ==========================================
 128 QPs * 3 clients * 10 CPU_NUM = 3840
 RDMA WRITE
@@ -78,7 +100,43 @@ msg_rate    33.4 Mops/s
 latency     3.47 us
 ==========================================
 
-128 64 32 16 8 4 2 1
-2606.32 2594.89 2604.4 2817.57 2810.64 2795.12 2729.19 2138.0
-40.72 40.54 40.69 44.04 43.9 43.68 42.64 33.4
-4.5 4.49 4.34 3.96 3.65 3.48 3.48 3.47
+==========================================
+24 QPs * 3 clients * 10 CPU_NUM = 720
+RDMA WRITE
+QPS_PER_CLT 24
+CPU_NUM     10
+bandwidth   2819.49 MB/s
+msg_rate    44.06 Mops/s
+latency    4.16 us
+==========================================
+
+==========================================
+48 QPs * 3 clients * 10 CPU_NUM = 1440
+RDMA WRITE
+QPS_PER_CLT 48
+CPU_NUM     10
+bandwidth   2590.99 MB/s
+msg_rate    40.5 Mops/s
+latency    4.47 us
+==========================================
+
+==========================================
+96 QPs * 3 clients * 10 CPU_NUM = 2880
+RDMA WRITE
+QPS_PER_CLT 96
+CPU_NUM     10
+bandwidth   2603.08 MB/s
+msg_rate    40.66 Mops/s
+latency    4.5 us
+==========================================
+
+==========================================
+192 QPs * 3 clients * 10 CPU_NUM = 5760
+RDMA WRITE
+QPS_PER_CLT 192
+CPU_NUM     10
+bandwidth   2619.98 MB/s
+msg_rate    40.93 Mops/s
+latency    4.51 us
+==========================================
+

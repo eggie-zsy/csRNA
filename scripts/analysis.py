@@ -3,15 +3,15 @@ import time
 import datetime
 
 CLIENT_NUM = 3
-QP_CACHE_CAP = 200
-REORDER_CAP  = 16
-QP_NUM_LIST = [1,2,4,8,16,32,64,128,256] 
+QP_CACHE_CAP = 300
+REORDER_CAP  = 32
+QP_NUM_LIST = [1,2,4,8,16,24,32,48,64,96,128,192,256,512]
 
 
 WR_TYPE = 0 # 0 -  rdma write; 1 - rdma read
 PCIE_TYPE = "X16"
 VERSION = "V1.5-final"
-RECORD_FILENAME = "res_out/record-" + VERSION + "_QP_CACHE_CAP" + str(QP_CACHE_CAP) + "RECAP" + str(REORDER_CAP) + ".txt"
+RECORD_FILENAME = "res_out/record-" + VERSION + "_QP_CACHE_CAP" + str(QP_CACHE_CAP) + "RECAP" + str(REORDER_CAP) +"verylong"+ ".txt"
 
 def change_param(qps_per_clt):
     #写入测试qp数
@@ -119,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

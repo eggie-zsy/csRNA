@@ -3,9 +3,9 @@
 RDMA WRITE
 QPS_PER_CLT 512
 CPU_NUM     10
-bandwidth   701.95 MB/s
-msg_rate    11.0 Mops/s
-latency     4.55 us
+bandwidth   520.03 MB/s
+msg_rate    8.1 Mops/s
+latency     5.04 us
 ==========================================
 
 ==========================================
@@ -13,9 +13,9 @@ latency     4.55 us
 RDMA WRITE
 QPS_PER_CLT 256
 CPU_NUM     10
-bandwidth   686.65 MB/s
-msg_rate    10.7 Mops/s
-latency     4.51 us
+bandwidth   584.74 MB/s
+msg_rate    9.1 Mops/s
+latency     5.01 us
 ==========================================
 
 ==========================================
@@ -23,9 +23,9 @@ latency     4.51 us
 RDMA WRITE
 QPS_PER_CLT 128
 CPU_NUM     10
-bandwidth   679.21 MB/s
-msg_rate    10.61 Mops/s
-latency     4.52 us
+bandwidth   616.44 MB/s
+msg_rate    9.64 Mops/s
+latency     5.03 us
 ==========================================
 
 ==========================================
@@ -33,9 +33,9 @@ latency     4.52 us
 RDMA WRITE
 QPS_PER_CLT 64
 CPU_NUM     10
-bandwidth   675.18 MB/s
-msg_rate    10.54 Mops/s
-latency     4.56 us
+bandwidth   633.89 MB/s
+msg_rate    9.91 Mops/s
+latency     5.06 us
 ==========================================
 
 ==========================================
@@ -43,9 +43,9 @@ latency     4.56 us
 RDMA WRITE
 QPS_PER_CLT 32
 CPU_NUM     10
-bandwidth   673.25 MB/s
-msg_rate    10.52 Mops/s
-latency     4.55 us
+bandwidth   638.16 MB/s
+msg_rate    9.98 Mops/s
+latency     5.04 us
 ==========================================
 
 ==========================================
@@ -53,9 +53,9 @@ latency     4.55 us
 RDMA WRITE
 QPS_PER_CLT 16
 CPU_NUM     10
-bandwidth   672.23 MB/s
-msg_rate    10.5 Mops/s
-latency     4.05 us
+bandwidth   645.71 MB/s
+msg_rate    10.1 Mops/s
+latency     4.56 us
 ==========================================
 
 ==========================================
@@ -63,9 +63,9 @@ latency     4.05 us
 RDMA WRITE
 QPS_PER_CLT 8
 CPU_NUM     10
-bandwidth   1970.76 MB/s
-msg_rate    30.8 Mops/s
-latency     3.95 us
+bandwidth   1829.07 MB/s
+msg_rate    28.58 Mops/s
+latency     4.01 us
 ==========================================
 
 ==========================================
@@ -83,7 +83,7 @@ latency     3.48 us
 RDMA WRITE
 QPS_PER_CLT 2
 CPU_NUM     10
-bandwidth   2729.45 MB/s
+bandwidth   2729.37 MB/s
 msg_rate    42.64 Mops/s
 latency     3.48 us
 ==========================================
@@ -93,7 +93,7 @@ latency     3.48 us
 RDMA WRITE
 QPS_PER_CLT 1
 CPU_NUM     10
-bandwidth   2138.49 MB/s
+bandwidth   2138.45 MB/s
 msg_rate    33.42 Mops/s
 latency     3.47 us
 ==========================================
@@ -104,9 +104,9 @@ latency     3.47 us
 RDMA WRITE
 QPS_PER_CLT 24
 CPU_NUM     10
-bandwidth   672.66 MB/s
-msg_rate    10.54 Mops/s
-latency    4.56 us
+bandwidth   641.93 MB/s
+msg_rate    10.03 Mops/s
+latency    4.81 us
 ==========================================
 
 ==========================================
@@ -114,9 +114,9 @@ latency    4.56 us
 RDMA WRITE
 QPS_PER_CLT 48
 CPU_NUM     10
-bandwidth   674.14 MB/s
-msg_rate    10.52 Mops/s
-latency    4.56 us
+bandwidth   636.05 MB/s
+msg_rate    9.93 Mops/s
+latency    5.05 us
 ==========================================
 
 ==========================================
@@ -124,9 +124,9 @@ latency    4.56 us
 RDMA WRITE
 QPS_PER_CLT 96
 CPU_NUM     10
-bandwidth   677.07 MB/s
-msg_rate    10.58 Mops/s
-latency    4.52 us
+bandwidth   625.17 MB/s
+msg_rate    9.77 Mops/s
+latency    5.05 us
 ==========================================
 
 ==========================================
@@ -134,7 +134,7 @@ latency    4.52 us
 RDMA WRITE
 QPS_PER_CLT 192
 CPU_NUM     10
-bandwidth   682.82 MB/s
-msg_rate    10.66 Mops/s
-latency    4.55 us
+bandwidth   599.09 MB/s
+msg_rate    9.36 Mops/s
+latency    5.03 us
 ==========================================

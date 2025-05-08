@@ -37,15 +37,15 @@ def cmd_run_sim(debug, test_prog, option, params, output_file,threadid):
     cmd += " --pci-linkspeed " + PCI_SPEED
     cmd += " --qpc-cache-cap " + str(params.qpc_cache_cap)
     cmd += " --reorder-cap " + str(params.reorder_cap)
-    cmd += " --mem-size 2048MB"
+    cmd += " --mem-size 4096MB"
     cmd += f" > {output_file}"  # 动态指定输出文件路径
 
     return cmd
 
-def execute_program(debug, test_prog, option, params,output_file,makefile_copy,thread_id):
+def execute_program(debug, test_prog, option, params,output_file,thread_id):
     output_file = os.path.join("/root/myzsy/csRNA/scripts", output_file)
     cmd_list = [
-        f"cd ../tests/test-progs/hangu-rnic/src && make -f {os.path.basename(makefile_copy)} THREAD_ID={thread_id}"
+        f"cd ../tests/test-progs/hangu-rnic/src && make THREAD_ID={thread_id}"
     ]
     cmd_list.append(cmd_run_sim(debug, test_prog, option, params,output_file,thread_id))
 
@@ -58,7 +58,7 @@ def execute_program(debug, test_prog, option, params,output_file,makefile_copy,t
         
 
 def main():
-    if len(sys.argv) < 10:
+    if len(sys.argv) < 9:
         raise Exception("\033[0;31;40mMissing input parameter. Needs 9.\033[0m")
     params = Param(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
     output_file = sys.argv[5]  # 获取输出文件路径
@@ -67,8 +67,9 @@ def main():
     server_copy,_= os.path.splitext(server_copy)  # 分离文件名和扩展名
     client_copy,_= os.path.splitext(client_copy)  # 分离文件名和扩展名
 
-    makefile_copy=sys.argv[8]
-    thread_id=sys.argv[9]
+    #makefile_copy=sys.argv[8]
+    #thread_id=sys.argv[9]
+    thread_id=sys.argv[8]
 
     num_nodes = params.num_nodes
     svr_lid = SERVER_LID  # svr_lid = 10
@@ -84,7 +85,7 @@ def main():
     test_prog += "'"
     opt += "'"
 
-    return execute_program(debug=debug, test_prog=test_prog, option=opt, params=params, output_file=output_file,makefile_copy=makefile_copy,thread_id=thread_id)
+    return execute_program(debug=debug, test_prog=test_prog, option=opt, params=params, output_file=output_file,thread_id=thread_id)
 
 if __name__ == "__main__":
     main()

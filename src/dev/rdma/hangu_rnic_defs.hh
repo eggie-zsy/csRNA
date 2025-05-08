@@ -24,7 +24,6 @@
  * Han Gu RNIC register defination declaration.
  */
 
-//开始你的阅读征程吧蛋蛋
 
 #ifndef __HANGU_RNIC_DEFS_HH__
 #define __HANGU_RNIC_DEFS_HH__
